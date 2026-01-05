@@ -12,7 +12,7 @@ extern int nBestHeight;
 
 
 
-static const unsigned short DEFAULT_PORT = 0x8d20; // htons(8333)
+static const unsigned short DEFAULT_PORT = htons(18333); // BitcoinOG P2P port
 static const unsigned int PUBLISH_HOPS = 5;
 enum
 {
@@ -51,13 +51,14 @@ bool StopNode();
 // The message start string is designed to be unlikely to occur in normal data.
 // The characters are rarely used upper ascii, not valid as UTF-8, and produce
 // a large 4-byte int at any alignment.
-static const char pchMessageStart[4] = { 0xf9, 0xbe, 0xb4, 0xd9 };
+// BitcoinOG: unique network magic bytes for network isolation
+static const unsigned char pchMessageStart[4] = { 0xb4, 0x0b, 0xc0, 0xde };
 
 class CMessageHeader
 {
 public:
     enum { COMMAND_SIZE=12 };
-    char pchMessageStart[sizeof(::pchMessageStart)];
+    unsigned char pchMessageStart[sizeof(::pchMessageStart)];
     char pchCommand[COMMAND_SIZE];
     unsigned int nMessageSize;
     unsigned int nChecksum;
@@ -464,7 +465,7 @@ extern uint64 nLocalServices;
 extern CAddress addrLocalHost;
 extern CNode* pnodeLocalHost;
 extern uint64 nLocalHostNonce;
-extern array<int, 10> vnThreadsRunning;
+extern boost::array<int, 10> vnThreadsRunning;
 extern SOCKET hListenSocket;
 extern int64 nThreadSocketHandlerHeartbeat;
 

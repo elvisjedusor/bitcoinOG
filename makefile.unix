@@ -1,52 +1,55 @@
 # Copyright (c) 2009-2010 Satoshi Nakamoto
 # Distributed under the MIT/X11 software license, see the accompanying
 # file license.txt or http://www.opensource.org/licenses/mit-license.php.
+#
+# BitcoinOG: Modernized for Ubuntu 24.04 LTS / GCC 11+
 
+CXX ?= g++
+CXXFLAGS = -std=c++11 -O2 -Wno-invalid-offsetof -Wformat -Wno-deprecated-declarations
 
+# wxWidgets configuration (for GUI builds)
+WXCONFIG ?= wx-config
+WXCXXFLAGS := $(shell $(WXCONFIG) --cxxflags 2>/dev/null || echo "-DwxUSE_GUI=0")
+WXLIBS := $(shell $(WXCONFIG) --libs 2>/dev/null || echo "")
 
-INCLUDEPATHS= \
- -I"/usr/include" \
- -I"/usr/local/include/wx-2.9" \
- -I"/usr/local/lib/wx/include/gtk2-unicode-debug-static-2.9"
+# Include paths
+INCLUDEPATHS = \
+    -I"/usr/include" \
+    -I"/usr/local/include"
 
-LIBPATHS= \
- -L"/usr/lib" \
- -L"/usr/local/lib"
+# Library paths
+LIBPATHS = \
+    -L"/usr/lib" \
+    -L"/usr/lib/x86_64-linux-gnu" \
+    -L"/usr/local/lib"
 
-WXLIBS= \
- -Wl,-Bstatic \
-   -l wx_gtk2ud-2.9 \
- -Wl,-Bdynamic \
-   -l gtk-x11-2.0 -l SM
+# Libraries for daemon (no GUI)
+# Note: Using db (C API) instead of db_cxx (C++ bindings) for modern compatibility
+LIBS_DAEMON = \
+    -lboost_system \
+    -lboost_filesystem \
+    -ldb \
+    -lssl \
+    -lcrypto \
+    -lpthread
 
-LIBS= \
- -Wl,-Bstatic \
-   -l boost_system -l boost_filesystem \
-   -l db_cxx \
- -Wl,-Bdynamic \
-   -l crypto \
-   -l gthread-2.0
+# Libraries for GUI
+LIBS_GUI = $(WXLIBS) $(LIBS_DAEMON) -lgtk-3 -lgdk-3
 
-WXDEFS=-D__WXGTK__ -DNOPCH
-DEBUGFLAGS=-g -D__WXDEBUG__
-CFLAGS=-O2 -Wno-invalid-offsetof -Wformat $(DEBUGFLAGS) $(WXDEFS) $(INCLUDEPATHS)
-HEADERS=headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
-    script.h db.h net.h irc.h main.h rpc.h uibase.h ui.h init.h sha.h
+# Defines
+# OPENSSL_SUPPRESS_DEPRECATED - suppress EC_KEY deprecation warnings in OpenSSL 3.x
+DEFS = -DNOPCH -D_FILE_OFFSET_BITS=64 -DOPENSSL_SUPPRESS_DEPRECATED
+DEFS_GUI = $(DEFS) -D__WXGTK__
+DEFS_DAEMON = $(DEFS) -DwxUSE_GUI=0
 
+# Debug flags (comment out for release)
+# DEBUGFLAGS = -g -D__WXDEBUG__
 
-all: bitcoin
+HEADERS = headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
+    script.h db.h db_cxx_compat.h net.h irc.h main.h rpc.h uibase.h ui.h init.h sha.h
 
-
-headers.h.gch: headers.h $(HEADERS)
-	g++ -c $(CFLAGS) -o $@ $<
-
-obj/%.o: %.cpp $(HEADERS) headers.h.gch
-	g++ -c $(CFLAGS) -o $@ $<
-
-obj/sha.o: sha.cpp sha.h
-	g++ -c $(CFLAGS) -O3 -o $@ $<
-
-OBJS= \
+# Object files
+OBJS = \
     obj/util.o \
     obj/script.o \
     obj/db.o \
@@ -54,20 +57,67 @@ OBJS= \
     obj/irc.o \
     obj/main.o \
     obj/rpc.o \
-    obj/init.o
+    obj/init.o \
+    obj/sha.o
 
-bitcoin: $(OBJS) obj/ui.o obj/uibase.o obj/sha.o
-	g++ $(CFLAGS) -o $@ $(LIBPATHS) $^ $(WXLIBS) $(LIBS)
+OBJS_GUI = $(OBJS) obj/ui.o obj/uibase.o
 
+OBJS_DAEMON = \
+    obj/nogui/util.o \
+    obj/nogui/script.o \
+    obj/nogui/db.o \
+    obj/nogui/net.o \
+    obj/nogui/irc.o \
+    obj/nogui/main.o \
+    obj/nogui/rpc.o \
+    obj/nogui/init.o \
+    obj/sha.o
 
+# Targets
+all: bitcoinogd
+
+# GUI version (requires wxWidgets)
+bitcoinog: $(OBJS_GUI)
+	$(CXX) $(CXXFLAGS) $(DEFS_GUI) -o $@ $(LIBPATHS) $^ $(LIBS_GUI)
+
+# Daemon version (no GUI)
+bitcoinogd: directories $(OBJS_DAEMON)
+	$(CXX) $(CXXFLAGS) $(DEFS_DAEMON) -o $@ $(LIBPATHS) $(OBJS_DAEMON) $(LIBS_DAEMON)
+
+# Create object directories
+directories:
+	@mkdir -p obj
+	@mkdir -p obj/nogui
+
+# GUI object files
+obj/%.o: %.cpp $(HEADERS)
+	$(CXX) -c $(CXXFLAGS) $(DEFS_GUI) $(WXCXXFLAGS) $(INCLUDEPATHS) -o $@ $<
+
+# Daemon object files (no GUI)
 obj/nogui/%.o: %.cpp $(HEADERS)
-	g++ -c $(CFLAGS) -DwxUSE_GUI=0 -o $@ $<
+	$(CXX) -c $(CXXFLAGS) $(DEFS_DAEMON) $(INCLUDEPATHS) -o $@ $<
 
-bitcoind: $(OBJS:obj/%=obj/nogui/%) obj/sha.o
-	g++ $(CFLAGS) -o $@ $(LIBPATHS) $^ -l wx_baseud-2.9 $(LIBS)
+# SHA optimization
+obj/sha.o: sha.cpp sha.h
+	$(CXX) -c $(CXXFLAGS) -O3 $(DEFS) $(INCLUDEPATHS) -o $@ $<
 
+# JSON Spirit (if needed)
+obj/json_spirit_reader.o: json/json_spirit_reader.cpp
+	$(CXX) -c $(CXXFLAGS) $(DEFS) $(INCLUDEPATHS) -o $@ $<
+
+obj/json_spirit_value.o: json/json_spirit_value.cpp
+	$(CXX) -c $(CXXFLAGS) $(DEFS) $(INCLUDEPATHS) -o $@ $<
+
+obj/json_spirit_writer.o: json/json_spirit_writer.cpp
+	$(CXX) -c $(CXXFLAGS) $(DEFS) $(INCLUDEPATHS) -o $@ $<
 
 clean:
-	-rm obj/*.o
-	-rm obj/nogui/*.o
-	-rm headers.h.gch
+	-rm -f bitcoinog bitcoinogd
+	-rm -rf obj
+	-rm -f headers.h.gch
+
+# Installation
+install: bitcoinogd
+	install -m 755 bitcoinogd /usr/local/bin/
+
+.PHONY: all clean directories install

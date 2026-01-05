@@ -165,6 +165,7 @@ void SetStartOnSystemStartup(bool fAutoStart) { }
 // CMyApp
 //
 
+#if wxUSE_GUI
 // Define a new application
 class CMyApp: public wxApp
 {
@@ -292,10 +293,11 @@ bool CMyApp::OnInit2()
 #if wxUSE_GUI
     wxImage::AddHandler(new wxPNGHandler);
 #endif
+// BitcoinOG: Updated app name for data directory
 #if defined(__WXMSW__ ) || defined(__WXMAC__)
-    SetAppName("Bitcoin");
+    SetAppName("BitcoinOG");
 #else
-    SetAppName("bitcoin");
+    SetAppName("bitcoinog");
 #endif
 #ifndef __WXMSW__
     umask(077);
@@ -315,7 +317,7 @@ bool CMyApp::OnInit2()
 #endif
 #endif
 
-    // Load locale/<lang>/LC_MESSAGES/bitcoin.mo language file
+    // Load locale/<lang>/LC_MESSAGES/bitcoinog.mo language file
     m_locale.Init(wxLANGUAGE_DEFAULT, 0);
     m_locale.AddCatalogLookupPathPrefix("locale");
     if (!fWindows)
@@ -324,7 +326,7 @@ bool CMyApp::OnInit2()
         m_locale.AddCatalogLookupPathPrefix("/usr/local/share/locale");
     }
     m_locale.AddCatalog("wxstd"); // wxWidgets standard translations, if any
-    m_locale.AddCatalog("bitcoin");
+    m_locale.AddCatalog("bitcoinog");
 
     //
     // Parameters
@@ -340,10 +342,10 @@ bool CMyApp::OnInit2()
     {
         wxString strUsage = string() +
           _("Usage:") + "\t\t\t\t\t\t\t\t\t\t\n" +
-            "  bitcoin [options]       \t" + "\n" +
-            "  bitcoin [command]       \t" + _("Send command to bitcoin running with -server or -daemon\n") +
-            "  bitcoin [command] -?    \t" + _("Get help for a command\n") +
-            "  bitcoin help            \t" + _("List commands\n") +
+            "  bitcoinog [options]       \t" + "\n" +
+            "  bitcoinog [command]       \t" + _("Send command to bitcoinog running with -server or -daemon\n") +
+            "  bitcoinog [command] -?    \t" + _("Get help for a command\n") +
+            "  bitcoinog help            \t" + _("List commands\n") +
           _("Options:\n") +
             "  -gen            \t  " + _("Generate coins\n") +
             "  -gen=0          \t  " + _("Don't generate coins\n") +
@@ -360,7 +362,7 @@ bool CMyApp::OnInit2()
         if (fWindows && fGUI)
         {
             // Tabs make the columns line up in the message box
-            wxMessageBox(strUsage, "Bitcoin", wxOK);
+            wxMessageBox(strUsage, "BitcoinOG", wxOK);
         }
         else
         {
@@ -375,7 +377,10 @@ bool CMyApp::OnInit2()
         strlcpy(pszSetDataDir, mapArgs["-datadir"].c_str(), sizeof(pszSetDataDir));
 
     if (mapArgs.count("-debug"))
+    {
         fDebug = true;
+        fPrintToConsole = true;
+    }
 
     if (mapArgs.count("-printtodebugger"))
         fPrintToDebugger = true;
@@ -383,9 +388,9 @@ bool CMyApp::OnInit2()
     if (!fDebug && !pszSetDataDir[0])
         ShrinkDebugFile();
     printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-    printf("Bitcoin version %d.%d.%d%s beta, OS version %s\n", VERSION/10000, (VERSION/100)%100, VERSION%100, pszSubVer, ((string)wxGetOsDescription()).c_str());
+    printf("BitcoinOG version %d.%d.%d%s, OS version %s\n", VERSION/10000, (VERSION/100)%100, VERSION%100, pszSubVer, ((string)wxGetOsDescription()).c_str());
     printf("System default language is %d %s\n", m_locale.GetSystemLanguage(), ((string)m_locale.GetSysName()).c_str());
-    printf("Language file %s (%s)\n", (string("locale/") + (string)m_locale.GetCanonicalName() + "/LC_MESSAGES/bitcoin.mo").c_str(), ((string)m_locale.GetLocale()).c_str());
+    printf("Language file %s (%s)\n", (string("locale/") + (string)m_locale.GetCanonicalName() + "/LC_MESSAGES/bitcoinog.mo").c_str(), ((string)m_locale.GetLocale()).c_str());
 
     if (mapArgs.count("-loadblockindextest"))
     {
@@ -402,7 +407,7 @@ bool CMyApp::OnInit2()
 #ifdef __WXMSW__
     // todo: wxSingleInstanceChecker wasn't working on Linux, never deleted its lock file
     //  maybe should go by whether successfully bind port 8333 instead
-    wxString strMutexName = wxString("bitcoin_running.") + getenv("HOMEPATH");
+    wxString strMutexName = wxString("bitcoinog_running.") + getenv("HOMEPATH");
     for (int i = 0; i < strMutexName.size(); i++)
         if (!isalnum(strMutexName[i]))
             strMutexName[i] = '.';
@@ -415,7 +420,7 @@ bool CMyApp::OnInit2()
         {
             // TODO: find out how to do this in Linux, or replace with wxWidgets commands
             // Show the previous instance and exit
-            HWND hwndPrev = FindWindowA("wxWindowClassNR", "Bitcoin");
+            HWND hwndPrev = FindWindowA("wxWindowClassNR", "BitcoinOG");
             if (hwndPrev)
             {
                 if (IsIconic(hwndPrev))
@@ -442,7 +447,7 @@ bool CMyApp::OnInit2()
     string strErrors;
     if (!BindListenPort(strErrors))
     {
-        wxMessageBox(strErrors, "Bitcoin");
+        wxMessageBox(strErrors, "BitcoinOG");
         return false;
     }
 
@@ -450,7 +455,7 @@ bool CMyApp::OnInit2()
     // Load data files
     //
     if (fDaemon)
-        fprintf(stdout, "bitcoin server starting\n");
+        fprintf(stdout, "BitcoinOG server starting\n");
     strErrors = "";
     int64 nStart;
 
@@ -530,6 +535,12 @@ bool CMyApp::OnInit2()
             fGenerateBitcoins = true;
         else
             fGenerateBitcoins = (atoi(mapArgs["-gen"].c_str()) != 0);
+    }
+
+    if (mapArgs.count("-solo"))
+    {
+        fSoloMining = true;
+        printf("Solo mining mode enabled - mining without peers\n");
     }
 
     if (mapArgs.count("-proxy"))
@@ -633,3 +644,250 @@ void CMyApp::OnFatalException()
 {
     wxMessageBox(_("Program has crashed and will terminate.  "), "Bitcoin", wxOK | wxICON_ERROR);
 }
+
+#else
+
+bool AppInit(int argc, char* argv[])
+{
+#ifdef _MSC_VER
+    _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_WARN, CreateFileA("NUL", GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, 0));
+#endif
+#if _MSC_VER >= 1400
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
+#ifndef __WXMSW__
+    umask(077);
+#endif
+
+    // Check if any argument is an RPC command (not starting with -)
+    // RPC commands can appear after options like -datadir
+    int rpcArgIndex = -1;
+    for (int i = 1; i < argc; i++)
+    {
+        if (argv[i][0] != '-')
+        {
+            rpcArgIndex = i;
+            fCommandLine = true;
+            break;
+        }
+    }
+
+    if (!fCommandLine)
+    {
+        fDaemon = true;
+    }
+
+    if (fCommandLine)
+    {
+        // Parse parameters first so -datadir is available for RPC
+        ParseParameters(argc, argv);
+
+        // Build new argv: program name + RPC command + RPC args
+        // CommandLineRPC expects argv[1] to be the method name
+        int rpcArgc = 1 + (argc - rpcArgIndex);  // prog + command + args
+        char** rpcArgv = new char*[rpcArgc];
+        rpcArgv[0] = argv[0];  // program name
+        for (int i = rpcArgIndex; i < argc; i++)
+            rpcArgv[1 + i - rpcArgIndex] = argv[i];
+
+        int ret = CommandLineRPC(rpcArgc, rpcArgv);
+        delete[] rpcArgv;
+        exit(ret);
+    }
+
+    ParseParameters(argc, argv);
+
+    if (mapArgs.count("-?") || mapArgs.count("--help"))
+    {
+        string strUsage = string() +
+          _("Usage:") + "\n" +
+            "  bitcoinog [options]       \n" +
+            "  bitcoinog [command]       " + _("Send command to bitcoinog running with -server or -daemon\n") +
+            "  bitcoinog [command] -?    " + _("Get help for a command\n") +
+            "  bitcoinog help            " + _("List commands\n") +
+          _("Options:\n") +
+            "  -gen              " + _("Generate coins\n") +
+            "  -gen=0            " + _("Don't generate coins\n") +
+            "  -datadir=<dir>    " + _("Specify data directory\n") +
+            "  -proxy=<ip:port>  " + _("Connect through socks4 proxy\n") +
+            "  -addnode=<ip>     " + _("Add a node to connect to\n") +
+            "  -connect=<ip>     " + _("Connect only to the specified node\n") +
+            "  -server           " + _("Accept command line and JSON-RPC commands\n") +
+            "  -daemon           " + _("Run in the background as a daemon and accept commands\n") +
+            "  -?                " + _("This help message\n");
+        fprintf(stderr, "%s", strUsage.c_str());
+        return false;
+    }
+
+    if (mapArgs.count("-datadir"))
+        strlcpy(pszSetDataDir, mapArgs["-datadir"].c_str(), sizeof(pszSetDataDir));
+
+    if (mapArgs.count("-debug"))
+    {
+        fDebug = true;
+        fPrintToConsole = true;
+    }
+
+    if (mapArgs.count("-printtodebugger"))
+        fPrintToDebugger = true;
+
+    if (!fDebug && !pszSetDataDir[0])
+        ShrinkDebugFile();
+
+    printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+    printf("BitcoinOG version %d.%d.%d%s\n", VERSION/10000, (VERSION/100)%100, VERSION%100, pszSubVer);
+
+    if (mapArgs.count("-loadblockindextest"))
+    {
+        CTxDB txdb("r");
+        txdb.LoadBlockIndex();
+        PrintBlockTree();
+        return false;
+    }
+
+    string strErrors;
+    if (!BindListenPort(strErrors))
+    {
+        fprintf(stderr, "%s\n", strErrors.c_str());
+        return false;
+    }
+
+    if (!LoadBlockIndex())
+    {
+        fprintf(stderr, "Error loading block index\n");
+        return false;
+    }
+
+    bool fFirstRun;
+    if (!LoadWallet(fFirstRun))
+    {
+        fprintf(stderr, "Error loading wallet\n");
+        return false;
+    }
+
+    printf("Done loading\n");
+
+    if (mapArgs.count("-printblockindex") || mapArgs.count("-printblocktree"))
+    {
+        PrintBlockTree();
+        return false;
+    }
+
+    if (mapArgs.count("-printblock"))
+    {
+        string strMatch = mapArgs["-printblock"];
+        int nFound = 0;
+        for (map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.begin(); mi != mapBlockIndex.end(); ++mi)
+        {
+            uint256 hash = (*mi).first;
+            if (strncmp(hash.ToString().c_str(), strMatch.c_str(), strMatch.size()) == 0)
+            {
+                CBlockIndex* pindex = (*mi).second;
+                CBlock block;
+                block.ReadFromDisk(pindex);
+                block.BuildMerkleTree();
+                block.print();
+                printf("\n");
+                nFound++;
+            }
+        }
+        if (nFound == 0)
+            printf("No blocks matching %s were found\n", strMatch.c_str());
+        return false;
+    }
+
+    if (mapArgs.count("-gen"))
+    {
+        if (mapArgs["-gen"].empty())
+            fGenerateBitcoins = true;
+        else
+            fGenerateBitcoins = (atoi(mapArgs["-gen"].c_str()) != 0);
+    }
+
+    if (mapArgs.count("-solo"))
+    {
+        fSoloMining = true;
+        printf("Solo mining mode enabled - mining without peers\n");
+    }
+
+    if (mapArgs.count("-proxy"))
+    {
+        fUseProxy = true;
+        addrProxy = CAddress(mapArgs["-proxy"]);
+        if (!addrProxy.IsValid())
+        {
+            fprintf(stderr, "Invalid -proxy address\n");
+            return false;
+        }
+    }
+
+    if (mapArgs.count("-paytxfee"))
+    {
+        if (!ParseMoney(mapArgs["-paytxfee"], nTransactionFee))
+        {
+            fprintf(stderr, "Invalid -paytxfee amount\n");
+            return false;
+        }
+        if (nTransactionFee > 0.25 * COIN)
+            fprintf(stderr, "Warning: -paytxfee is set very high\n");
+    }
+
+    if (fDaemon && !fDebug)
+    {
+        pid_t pid = fork();
+        if (pid < 0)
+        {
+            fprintf(stderr, "Error: fork() returned %d errno %d\n", pid, errno);
+            return false;
+        }
+        if (pid > 0)
+            exit(0);
+
+        setsid();
+    }
+
+    if (!CheckDiskSpace())
+        return false;
+
+    RandAddSeedPerfmon();
+
+    if (!CreateThread(StartNode, NULL))
+    {
+        fprintf(stderr, "Error: CreateThread(StartNode) failed\n");
+        return false;
+    }
+
+    if (mapArgs.count("-server") || fDaemon)
+        CreateThread(ThreadRPCServer, NULL);
+
+    return true;
+}
+
+int main(int argc, char* argv[])
+{
+    bool fRet = false;
+    try
+    {
+        fRet = AppInit(argc, argv);
+    }
+    catch (std::exception& e)
+    {
+        PrintException(&e, "AppInit()");
+    }
+    catch (...)
+    {
+        PrintException(NULL, "AppInit()");
+    }
+
+    if (fRet)
+    {
+        while (!fShutdown)
+            Sleep(5000);
+    }
+
+    Shutdown(NULL);
+    return 0;
+}
+
+#endif

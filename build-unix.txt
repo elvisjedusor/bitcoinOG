@@ -6,78 +6,99 @@ the OpenSSL Toolkit (http://www.openssl.org/).  This product includes
 cryptographic software written by Eric Young (eay@cryptsoft.com).
 
 
-UNIX BUILD NOTES
-================
+UNIX BUILD NOTES (Ubuntu 24.04 LTS)
+===================================
+
+This codebase has been modernized to compile on Ubuntu 24.04 LTS with:
+- GCC 11+ / C++11
+- OpenSSL 3.x (with compatibility wrappers)
+- Berkeley DB 5.3 (using C API compatibility layer)
+- Boost 1.74+
 
 Dependencies
 ------------
+sudo apt-get update
 sudo apt-get install build-essential
-sudo apt-get install libgtk2.0-dev
 sudo apt-get install libssl-dev
-sudo apt-get install libdb4.7-dev
-sudo apt-get install libdb4.7++-dev
+sudo apt-get install libdb-dev libdb5.3-dev
 sudo apt-get install libboost-all-dev
 
-We're now using wxWidgets 2.9, which uses UTF-8.
+For GUI builds (optional, Phase 2):
+sudo apt-get install libwxgtk3.2-dev
+sudo apt-get install libgtk-3-dev
 
-There isn't currently a debian package of wxWidgets we can use.  The 2.8
-packages for Karmic are UTF-16 unicode and won't work for us, and we've had
-trouble building 2.8 on 64-bit.
 
-You need to download wxWidgets from http://www.wxwidgets.org/downloads/
-and build it yourself.  See the build instructions and configure parameters
-below.
+Building the Daemon (bitcoinogd)
+--------------------------------
+make -f makefile.unix clean
+make -f makefile.unix
 
-Licenses of statically linked libraries:
-wxWidgets      LGPL 2.1 with very liberal exceptions
-Berkeley DB    New BSD license with additional requirement that linked software must be free open source
-Boost          MIT-like license
+The daemon binary will be created as 'bitcoinogd'.
 
-Versions used in this release:
+
+Building the GUI (bitcoinog) - Phase 2
+--------------------------------------
+Requires wxWidgets. After installing libwxgtk3.2-dev:
+make -f makefile.unix bitcoinog
+
+
+Installation
+------------
+sudo make -f makefile.unix install
+
+This installs bitcoinogd to /usr/local/bin/
+
+
+Running
+-------
+# Create data directory
+mkdir -p ~/.bitcoinog
+
+# Run daemon
+./bitcoinogd
+
+# Run with options
+./bitcoinogd -daemon          # Run in background
+./bitcoinogd -gen             # Enable mining
+./bitcoinogd -rpcuser=user -rpcpassword=pass
+
+
+Troubleshooting
+---------------
+If you encounter OpenSSL errors about deprecated functions, ensure
+OPENSSL_SUPPRESS_DEPRECATED is defined in the makefile (already set).
+
+If Berkeley DB errors occur, the code now uses a C API compatibility
+layer (db_cxx_compat.h) instead of the deprecated C++ bindings.
+
+
+Modernization Notes
+-------------------
+The following changes were made for Ubuntu 24.04 compatibility:
+
+1. OpenSSL 3.x: BIGNUM is now opaque, CBigNum class refactored to wrap
+   BIGNUM* instead of inheriting from BIGNUM struct.
+
+2. Berkeley DB: C++ bindings (db_cxx.h) removed from modern Ubuntu.
+   Created db_cxx_compat.h wrapper using C API.
+
+3. Boost: Added BOOST_BIND_GLOBAL_PLACEHOLDERS to suppress deprecation
+   warnings about bind placeholders.
+
+4. GCC 11+: Fixed narrowing conversions, added C++11 standard flag.
+
+5. wxWidgets: Daemon build no longer requires wxWidgets. GUI-specific
+   code is conditionally compiled with #if wxUSE_GUI.
+
+
+Original Build Notes (Historical)
+---------------------------------
+Versions originally used:
 GCC          4.4.3
 OpenSSL      0.9.8k
 wxWidgets    2.9.0
 Berkeley DB  4.7.25.NC
 Boost        1.40.0
 
-
-Notes
------
-The UI layout is edited with wxFormBuilder.  The project file is
-uiproject.fbp.  It generates uibase.cpp and uibase.h, which define base
-classes that do the rote work of constructing all the UI elements.
-
-The release is built with GCC and then "strip bitcoin" to strip the debug
-symbols, which reduces the executable size by about 90%.
-
-
-wxWidgets
----------
-cd /usr/local
-tar -xzvf wxWidgets-2.9.0.tar.gz
-cd /usr/local/wxWidgets-2.9.0
-mkdir buildgtk
-cd buildgtk
-../configure --with-gtk --enable-debug --disable-shared --enable-monolithic
-make
-sudo su
-make install
-ldconfig
-su <username>
-cd ..
-mkdir buildbase
-cd buildbase
-../configure --disable-gui --enable-debug --disable-shared --enable-monolithic
-make
-sudo su
-make install
-ldconfig
-
-
-Boost
------
-If you want to build Boost yourself,
-cd /usr/local/boost_1_40_0
-su
-./bootstrap.sh
-./bjam install
+For GUI development, the UI layout is edited with wxFormBuilder.
+The project file is uiproject.fbp.

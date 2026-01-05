@@ -67,11 +67,11 @@ Value stop(const Array& params, bool fHelp)
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "stop\n"
-            "Stop bitcoin server.");
+            "Stop BitcoinOG server.");
 
     // Shutdown will take long enough that the response should get back
     CreateThread(Shutdown, NULL);
-    return "bitcoin server stopping";
+    return "BitcoinOG server stopping";
 }
 
 

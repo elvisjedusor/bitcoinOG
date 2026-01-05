@@ -1,0 +1,322 @@
+Deploy and maintain a live, functional blockchain network using Satoshi Nakamoto’s last solo-developed codebase, modified only where required for:
+
+Modern OS compatibility
+
+Network sustainability (difficulty, timing, reward)
+
+Explicitly defined protocol changes (listed below)
+
+Phase 1: Ubuntu 24.04 LTS (daemon only)
+
+Phase 2: Ubuntu GUI (wxWidgets)
+
+Phase 3: macOS (Intel + Apple Silicon)
+
+Phase 4: Windows 10 (x64)
+
+2.1 Network Identity (Hard Fork by Design)
+
+Change:
+
+pchMessageStart
+
+Default P2P port
+
+Default RPC port
+
+Purpose: absolute network isolation
+
+2.2 Genesis Block (REQUIRED)
+
+Create a new genesis block
+
+Keep structure identical to Bitcoin:
+
+save Coinbase message
+
+Same script structure
+
+Parameters:
+
+Timestamp: same
+
+Nonce: mined to satisfy new difficulty
+
+Must hardcode:
+
+Genesis hash
+
+Merkle root
+
+Files likely affected:
+
+main.cpp
+
+chainparams (inline in v0.3.0 logic)
+
+2.3 Difficulty Rules (MODIFIED)
+Initial Difficulty
+
+Set very low starting difficulty to mine on 1 VPS core 1 block per 30-60 sec (e.g. 0x1f00ffff or equivalent)
+
+Retargeting
+
+Change difficulty adjustment interval:
+
+From: 2016 blocks
+
+To: 10 blocks
+
+Target Block Time
+
+From: 10 minutes
+
+To: 1 minute
+
+Retarget Formula
+
+Same formula logic
+
+Only constants change:
+
+nTargetTimespan
+
+nTargetSpacing
+
+Files:
+
+main.cpp
+
+2.4 Block Reward
+
+From: 50 coins
+
+To: 5 coins (÷10)
+
+Halving logic:
+
+Keep same structure
+
+Decide:
+
+scale proportionally (recommended: 2,100,000 blocks)
+
+Must be explicitly defined and documented.
+
+3. NETWORK BOOTSTRAP (LIVE NETWORK)
+3.1 Seed Nodes
+
+No DNS seeds
+
+Hardcode 2–3 VPS nodes:
+
+IP:PORT directly in source
+
+These nodes:
+
+Run 24/7
+
+Serve as permanent bootstrap anchors
+
+Files:
+
+net.cpp
+
+net.h
+
+3.2 Daemon Behavior
+
+Must support:
+
+Mining (-gen)
+
+RPC mining control
+
+Wallet creation
+
+TX relay
+
+Block relay
+
+4. BUILD SYSTEM (UBUNTU FIRST)
+4.1 Toolchain
+
+Compiler: gcc >= 11
+
+Standard: C++11 (minimum)
+
+OS: Ubuntu 24.04
+
+4.2 Dependencies
+
+Berkeley DB 4.8 (MANDATORY)
+
+Wallet compatibility depends on this
+
+OpenSSL
+
+Use compatibility wrappers for deprecated APIs
+
+Boost
+
+Minimal version that compiles cleanly
+
+wxWidgets (for GUI later)
+
+4.3 Build Output
+
+bitcoinogd (daemon)
+
+Static linking preferred
+
+5. DAEMON PHASE (PHASE 1)
+Deliverables
+
+bitcoinogd
+
+Config file support:
+
+bitcoinog.conf
+
+CLI functionality:
+
+getinfo
+
+getblockcount
+
+sendtoaddress
+
+getbalance
+
+VPS Deployment
+
+Minimum 2 nodes, ideally 3
+
+Public IPs
+
+Firewall open on P2P + RPC (RPC restricted)
+
+6. GUI WALLET (PHASE 2)
+Ubuntu GUI
+
+Use original wxWidgets UI
+
+No UI redesign
+
+Only fixes required to compile/run
+
+Must Support:
+
+Create wallet
+
+Show balance
+
+Send / receive
+
+Show transactions
+
+Start/stop mining
+
+7. macOS PORT (PHASE 3)
+Targets
+
+macOS 12+
+
+Intel + Apple Silicon
+
+Notes
+
+wxWidgets compatibility fixes
+
+Replace deprecated macOS APIs only where required
+
+Codesigning optional initially
+
+8. WINDOWS 10 PORT (PHASE 4)
+Targets
+
+Windows 10 x64
+
+MinGW or MSVC
+
+Requirements
+
+GUI wallet
+
+Installer optional (ZIP acceptable initially)
+
+9. Research
+
+
+9.1 Time Handling
+
+GetAdjustedTime()
+
+Possible overflow / drift issues
+
+9.2 Mining Thread Stability
+
+CPU mining assumptions from 2010
+
+Thread locking issues on modern CPUs
+
+9.3 Networking
+
+IPv6 handling
+
+Socket initialization
+
+Non-blocking IO assumptions
+
+
+
+11. DOCUMENTATION REQUIREMENTS
+Required Files
+
+README.md
+
+Philosophy
+
+Explicit protocol changes
+
+Build instructions
+
+PROTOCOL_CHANGES.md
+
+NETWORK_PARAMS.md
+
+DISCLAIMER.md
+
+12. SUCCESS CRITERIA
+
+The project is considered successful when:
+
+Fresh node can:
+
+Download client
+
+Sync from genesis
+
+Mine blocks
+
+Send and receive coins
+
+Network remains live without manual intervention
+
+Multiple independent nodes can join and stay in consensus
+
+FINAL COMMENT (IMPORTANT)
+
+What you are building is not historical Bitcoin and not modern Bitcoin.
+
+It is a Satoshi-era Bitcoin-derived sovereign network, intentionally modified for survivability, while preserving:
+
+Code style
+
+Architecture
+
+UX
+
+Mental model of early Bitcoin
+
+That positioning is technically and philosophically defensible.

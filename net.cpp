@@ -21,7 +21,7 @@ uint64 nLocalServices = (fClient ? 0 : NODE_NETWORK);
 CAddress addrLocalHost(0, DEFAULT_PORT, nLocalServices);
 CNode* pnodeLocalHost = NULL;
 uint64 nLocalHostNonce = 0;
-array<int, 10> vnThreadsRunning;
+boost::array<int, 10> vnThreadsRunning;
 SOCKET hListenSocket = INVALID_SOCKET;
 int64 nThreadSocketHandlerHeartbeat = INT64_MAX;
 
@@ -129,17 +129,28 @@ bool GetMyExternalIP2(const CAddress& addrConnect, const char* pszGet, const cha
     {
         if (strLine.empty())
         {
-            loop
+            if (pszKeyword == NULL)
             {
                 if (!RecvLine(hSocket, strLine))
                 {
                     closesocket(hSocket);
                     return false;
                 }
-                if (strLine.find(pszKeyword) != -1)
+            }
+            else
+            {
+                loop
                 {
-                    strLine = strLine.substr(strLine.find(pszKeyword) + strlen(pszKeyword));
-                    break;
+                    if (!RecvLine(hSocket, strLine))
+                    {
+                        closesocket(hSocket);
+                        return false;
+                    }
+                    if (strLine.find(pszKeyword) != -1)
+                    {
+                        strLine = strLine.substr(strLine.find(pszKeyword) + strlen(pszKeyword));
+                        break;
+                    }
                 }
             }
             closesocket(hSocket);
@@ -170,46 +181,39 @@ bool GetMyExternalIP(unsigned int& ipRet)
     if (fUseProxy)
         return false;
 
-    for (int nLookup = 0; nLookup <= 1; nLookup++)
     for (int nHost = 1; nHost <= 2; nHost++)
     {
         if (nHost == 1)
         {
-            addrConnect = CAddress("70.86.96.218:80"); // www.ipaddressworld.com
+            struct hostent* phostent = gethostbyname("api.ipify.org");
+            if (phostent && phostent->h_addr_list && phostent->h_addr_list[0])
+                addrConnect = CAddress(*(u_long*)phostent->h_addr_list[0], htons(80));
+            else
+                continue;
 
-            if (nLookup == 1)
-            {
-                struct hostent* phostent = gethostbyname("www.ipaddressworld.com");
-                if (phostent && phostent->h_addr_list && phostent->h_addr_list[0])
-                    addrConnect = CAddress(*(u_long*)phostent->h_addr_list[0], htons(80));
-            }
-
-            pszGet = "GET /ip.php HTTP/1.1\r\n"
-                     "Host: www.ipaddressworld.com\r\n"
-                     "User-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1)\r\n"
+            pszGet = "GET / HTTP/1.1\r\n"
+                     "Host: api.ipify.org\r\n"
+                     "User-Agent: BitcoinOG/0.3\r\n"
                      "Connection: close\r\n"
                      "\r\n";
 
-            pszKeyword = "IP:";
+            pszKeyword = NULL;
         }
         else if (nHost == 2)
         {
-            addrConnect = CAddress("208.78.68.70:80"); // checkip.dyndns.org
-
-            if (nLookup == 1)
-            {
-                struct hostent* phostent = gethostbyname("checkip.dyndns.org");
-                if (phostent && phostent->h_addr_list && phostent->h_addr_list[0])
-                    addrConnect = CAddress(*(u_long*)phostent->h_addr_list[0], htons(80));
-            }
+            struct hostent* phostent = gethostbyname("icanhazip.com");
+            if (phostent && phostent->h_addr_list && phostent->h_addr_list[0])
+                addrConnect = CAddress(*(u_long*)phostent->h_addr_list[0], htons(80));
+            else
+                continue;
 
             pszGet = "GET / HTTP/1.1\r\n"
-                     "Host: checkip.dyndns.org\r\n"
-                     "User-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1)\r\n"
+                     "Host: icanhazip.com\r\n"
+                     "User-Agent: BitcoinOG/0.3\r\n"
                      "Connection: close\r\n"
                      "\r\n";
 
-            pszKeyword = "Address:";
+            pszKeyword = NULL;
         }
 
         if (GetMyExternalIP2(addrConnect, pszGet, pszKeyword, ipRet))
@@ -800,18 +804,12 @@ void ThreadSocketHandler2(void* parg)
 
 
 
+// BitcoinOG: Seed nodes for network bootstrap
 unsigned int pnSeed[] =
 {
-    0x35218252, 0x9c9c9618, 0xda6bacad, 0xb9aca862, 0x97c235c6,
-    0x146f9562, 0xb67b9e4b, 0x87cf4bc0, 0xb83945d0, 0x984333ad,
-    0xbbeec555, 0x6f0eb440, 0xe0005318, 0x7797e460, 0xddc60fcc,
-    0xb3bbd24a, 0x1ac85746, 0x641846a6, 0x85ee1155, 0xbb2e7a4c,
-    0x9cb8514b, 0xfc342648, 0x62958fae, 0xd0a8c87a, 0xa800795b,
-    0xda8c814e, 0x256a0c80, 0x3f23ec63, 0xd565df43, 0x997d9044,
-    0xaa121448, 0xbed8688e, 0x59d09a5e, 0xb2931243, 0x3730ba18,
-    0xdd3462d0, 0x4e4d1448, 0x171df645, 0x84ee1155,
-    0x248ac445, 0x0e634444, 0x0ded1b63, 0x30c01e60,
-    0xa2b9a094, 0x29e4fd43, 0x9ce61b4c, 0xdae09744,
+    0x215D6F40, // 64.111.93.33:8333
+    0x0A9F0DC6, // 198.13.159.10:8333
+    0x36C6FCA2, // 162.252.198.54:8333
 };
 
 

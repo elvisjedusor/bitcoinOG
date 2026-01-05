@@ -290,7 +290,7 @@ public:
 class CAddrDB : public CDB
 {
 public:
-    CAddrDB(const char* pszMode="r+") : CDB("addr.dat", pszMode) { }
+    CAddrDB(const char* pszMode="cr+") : CDB("addr.dat", pszMode) { }
 private:
     CAddrDB(const CAddrDB&);
     void operator=(const CAddrDB&);

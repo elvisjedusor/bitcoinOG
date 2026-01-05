@@ -86,7 +86,7 @@ typedef u_int SOCKET;
 #define _strlwr(psz)        to_lower(psz)
 #define _mkdir(psz)         filesystem::create_directory(psz)
 #define MAX_PATH            1024
-#define Sleep(n)            wxMilliSleep(n)
+#define Sleep(n)            usleep((n)*1000)
 #define Beep(n1,n2)         (0)
 #endif
 
@@ -172,7 +172,7 @@ public:
     void Enter() { EnterCriticalSection(&cs); }
     void Leave() { LeaveCriticalSection(&cs); }
     bool TryEnter() { return TryEnterCriticalSection(&cs); }
-#else
+#elif wxUSE_GUI
 protected:
     wxMutex mutex;
 public:
@@ -181,6 +181,21 @@ public:
     void Enter() { mutex.Lock(); }
     void Leave() { mutex.Unlock(); }
     bool TryEnter() { return mutex.TryLock() == wxMUTEX_NO_ERROR; }
+#else
+protected:
+    pthread_mutex_t mutex;
+public:
+    explicit CCriticalSection() {
+        pthread_mutexattr_t attr;
+        pthread_mutexattr_init(&attr);
+        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(&mutex, &attr);
+        pthread_mutexattr_destroy(&attr);
+    }
+    ~CCriticalSection() { pthread_mutex_destroy(&mutex); }
+    void Enter() { pthread_mutex_lock(&mutex); }
+    void Leave() { pthread_mutex_unlock(&mutex); }
+    bool TryEnter() { return pthread_mutex_trylock(&mutex) == 0; }
 #endif
 public:
     const char* pszFile;
@@ -324,7 +339,13 @@ inline int64 PerformanceCounter()
 
 inline int64 GetTimeMillis()
 {
+#if wxUSE_GUI
     return wxGetLocalTimeMillis().GetValue();
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (int64)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+#endif
 }
 
 inline string DateTimeStrFormat(const char* pszFormat, int64 nTime)
@@ -536,6 +557,6 @@ inline bool TerminateThread(pthread_t hthread, unsigned int nExitCode)
 
 inline void ExitThread(unsigned int nExitCode)
 {
-    pthread_exit((void*)nExitCode);
+    pthread_exit((void*)(uintptr_t)nExitCode);
 }
 #endif

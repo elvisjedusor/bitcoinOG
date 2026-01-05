@@ -2,12 +2,22 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file license.txt or http://www.opensource.org/licenses/mit-license.php.
 
+#if wxUSE_GUI
 DECLARE_EVENT_TYPE(wxEVT_UITHREADCALL, -1)
+#endif
 
 #if wxUSE_GUI
 static const bool fGUI=true;
 #else
 static const bool fGUI=false;
+#endif
+
+// Define stubs for non-GUI builds
+#if !wxUSE_GUI
+#define wxOK 0x00000004
+#define wxICON_ERROR 0x00000200
+typedef void* wxWindow;
+typedef std::string wxString;
 #endif
 
 inline int MyMessageBox(const wxString& message, const wxString& caption="Message", int style=wxOK, wxWindow* parent=NULL, int x=-1, int y=-1)
@@ -23,9 +33,11 @@ inline int MyMessageBox(const wxString& message, const wxString& caption="Messag
 #define wxMessageBox  MyMessageBox
 
 
-
-
+#if wxUSE_GUI
+class wxKeyEvent;
 void HandleCtrlA(wxKeyEvent& event);
+#endif
+
 string FormatTxStatus(const CWalletTx& wtx);
 void UIThreadCall(boost::function0<void>);
 int ThreadSafeMessageBox(const string& message, const string& caption="Message", int style=wxOK, wxWindow* parent=NULL, int x=-1, int y=-1);

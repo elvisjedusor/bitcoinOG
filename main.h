@@ -17,9 +17,10 @@ class CKeyItem;
 static const unsigned int MAX_SIZE = 0x02000000;
 static const int64 COIN = 100000000;
 static const int64 CENT = 1000000;
-static const int COINBASE_MATURITY = 100;
+static const int COINBASE_MATURITY = 10;
 
-static const CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
+// BitcoinOG: Lower difficulty for CPU mining on VPS (allows ~1 block/minute)
+static const CBigNum bnProofOfWorkLimit(~uint256(0) >> 20);
 
 
 
@@ -48,6 +49,7 @@ extern int fLimitProcessors;
 extern int nLimitProcessors;
 extern int fMinimizeToTray;
 extern int fMinimizeOnClose;
+extern int fSoloMining;
 
 
 

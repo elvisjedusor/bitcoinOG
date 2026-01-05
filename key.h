@@ -1,7 +1,15 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Distributed under the MIT/X11 software license, see the accompanying
 // file license.txt or http://www.opensource.org/licenses/mit-license.php.
+//
+// Modernized for OpenSSL 3.x compatibility
 
+#ifndef KEY_H
+#define KEY_H
+
+#include <openssl/ec.h>
+#include <openssl/ecdsa.h>
+#include <openssl/obj_mac.h>
 
 // secp160k1
 // const unsigned int PRIVATE_KEY_SIZE = 192;
@@ -166,3 +174,5 @@ public:
         return key.Verify(hash, vchSig);
     }
 };
+
+#endif // KEY_H

@@ -227,8 +227,9 @@ void ThreadIRCSeed(void* parg)
         }
         Sleep(500);
 
-        Send(hSocket, "JOIN #bitcoin\r");
-        Send(hSocket, "WHO #bitcoin\r");
+        // BitcoinOG: Use our own IRC channel for peer discovery
+        Send(hSocket, "JOIN #bitcoinog\r");
+        Send(hSocket, "WHO #bitcoinog\r");
 
         int64 nStart = GetTime();
         string strLine;

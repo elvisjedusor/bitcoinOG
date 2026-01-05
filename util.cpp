@@ -20,13 +20,27 @@ bool fCommandLine = false;
 
 
 // Init openssl library multithreading support
+#if wxUSE_GUI
 static wxMutex** ppmutexOpenSSL;
+#else
+#include <pthread.h>
+static pthread_mutex_t** ppmutexOpenSSL;
+#endif
+
 void locking_callback(int mode, int i, const char* file, int line)
 {
     if (mode & CRYPTO_LOCK)
+#if wxUSE_GUI
         ppmutexOpenSSL[i]->Lock();
+#else
+        pthread_mutex_lock(ppmutexOpenSSL[i]);
+#endif
     else
+#if wxUSE_GUI
         ppmutexOpenSSL[i]->Unlock();
+#else
+        pthread_mutex_unlock(ppmutexOpenSSL[i]);
+#endif
 }
 
 // Init
@@ -36,9 +50,18 @@ public:
     CInit()
     {
         // Init openssl library multithreading support
+#if wxUSE_GUI
         ppmutexOpenSSL = (wxMutex**)OPENSSL_malloc(CRYPTO_num_locks() * sizeof(wxMutex*));
         for (int i = 0; i < CRYPTO_num_locks(); i++)
             ppmutexOpenSSL[i] = new wxMutex();
+#else
+        ppmutexOpenSSL = (pthread_mutex_t**)OPENSSL_malloc(CRYPTO_num_locks() * sizeof(pthread_mutex_t*));
+        for (int i = 0; i < CRYPTO_num_locks(); i++)
+        {
+            ppmutexOpenSSL[i] = (pthread_mutex_t*)OPENSSL_malloc(sizeof(pthread_mutex_t));
+            pthread_mutex_init(ppmutexOpenSSL[i], NULL);
+        }
+#endif
         CRYPTO_set_locking_callback(locking_callback);
 
 #ifdef __WXMSW__
@@ -54,7 +77,14 @@ public:
         // Shutdown openssl library multithreading support
         CRYPTO_set_locking_callback(NULL);
         for (int i = 0; i < CRYPTO_num_locks(); i++)
+        {
+#if wxUSE_GUI
             delete ppmutexOpenSSL[i];
+#else
+            pthread_mutex_destroy(ppmutexOpenSSL[i]);
+            OPENSSL_free(ppmutexOpenSSL[i]);
+#endif
+        }
         OPENSSL_free(ppmutexOpenSSL);
     }
 }
@@ -134,7 +164,11 @@ uint64 GetRand(uint64 nMax)
 inline int OutputDebugStringF(const char* pszFormat, ...)
 {
     int ret = 0;
+#if wxUSE_GUI
     if (fPrintToConsole || wxTheApp == NULL)
+#else
+    if (fPrintToConsole || true)
+#endif
     {
         // print to console
         va_list arg_ptr;
@@ -439,6 +473,7 @@ void ParseParameters(int argc, char* argv[])
 
 const char* wxGetTranslation(const char* pszEnglish)
 {
+#if wxUSE_GUI
     // Wrapper of wxGetTranslation returning the same const char* type as was passed in
     static CCriticalSection cs;
     CRITICAL_BLOCK(cs)
@@ -465,6 +500,10 @@ const char* wxGetTranslation(const char* pszEnglish)
         return pszCached;
     }
     return NULL;
+#else
+    // No translation in daemon mode, just return the original string
+    return pszEnglish;
+#endif
 }
 
 
@@ -485,7 +524,7 @@ void FormatException(char* pszMessage, std::exception* pex, const char* pszThrea
 #else
     // might not be thread safe, uses wxString
     //const char* pszModule = wxStandardPaths::Get().GetExecutablePath().mb_str();
-    const char* pszModule = "bitcoin";
+    const char* pszModule = "bitcoinog";
 #endif
     if (pex)
         snprintf(pszMessage, 1000,
@@ -508,8 +547,10 @@ void PrintException(std::exception* pex, const char* pszThread)
     FormatException(pszMessage, pex, pszThread);
     printf("\n\n************************\n%s\n", pszMessage);
     fprintf(stderr, "\n\n************************\n%s\n", pszMessage);
+#if wxUSE_GUI
     if (wxTheApp && !fDaemon && fGUI)
         MyMessageBox(pszMessage, "Error", wxOK | wxICON_ERROR);
+#endif
     throw;
     //DebugBreak();
 }
@@ -546,7 +587,15 @@ void GetDataDir(char* pszDir)
         static char pszCachedDir[MAX_PATH];
         if (pszCachedDir[0] == 0)
         {
+#if wxUSE_GUI
             strlcpy(pszCachedDir, wxStandardPaths::Get().GetUserDataDir().c_str(), sizeof(pszCachedDir));
+#else
+            // Use home directory for daemon
+            const char* pszHome = getenv("HOME");
+            if (pszHome == NULL || pszHome[0] == '\0')
+                pszHome = "/";
+            snprintf(pszCachedDir, sizeof(pszCachedDir), "%s/.bitcoinog", pszHome);
+#endif
             _mkdir(pszCachedDir);
         }
         strlcpy(pszDir, pszCachedDir, MAX_PATH);

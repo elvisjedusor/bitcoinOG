@@ -18,20 +18,34 @@
 #define _WIN32_IE 0x0400
 #define WIN32_LEAN_AND_MEAN 1
 #define __STDC_LIMIT_MACROS // to enable UINT64_MAX from stdint.h
+
+#if wxUSE_GUI
 #include <wx/wx.h>
 #include <wx/stdpaths.h>
 #include <wx/snglinst.h>
-#if wxUSE_GUI
 #include <wx/utils.h>
 #include <wx/clipbrd.h>
 #include <wx/taskbar.h>
+#else
+#define _(x) (x)
+#define wxOK 0
+#define wxICON_EXCLAMATION 0
+#define wxICON_ERROR 0
+#define wxYES 0
+#define wxNO 0
+#define wxYES_NO 0
+#define wxCANCEL 0
+#define wxID_YES 0
+#define wxID_OK 0
+#define wxID_NO 0
+#define wxID_CANCEL 0
 #endif
 #include <openssl/ecdsa.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/sha.h>
 #include <openssl/ripemd.h>
-#include <db_cxx.h>
+#include "db_cxx_compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -49,6 +63,10 @@
 #include <set>
 #include <algorithm>
 #include <numeric>
+
+// Suppress Boost bind placeholder deprecation warning
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
+
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/tuple/tuple.hpp>
@@ -79,6 +97,8 @@
 #include <errno.h>
 #include <net/if.h>
 #include <ifaddrs.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #endif
 #ifdef __BSD__
 #include <netinet/in.h>
@@ -108,6 +128,7 @@ using namespace boost;
 #include "ui.h"
 #include "init.h"
 
+#if wxUSE_GUI
 #include "xpm/addressbook16.xpm"
 #include "xpm/addressbook20.xpm"
 #include "xpm/bitcoin16.xpm"
@@ -120,3 +141,4 @@ using namespace boost;
 #include "xpm/send16noshadow.xpm"
 #include "xpm/send20.xpm"
 #include "xpm/about.xpm"
+#endif
