@@ -2460,8 +2460,6 @@ void CAddressBookDialog::OnListEndLabelEdit(wxListEvent& event)
 void CAddressBookDialog::OnListItemSelected(wxListEvent& event)
 {
     event.Skip();
-    if (nPage == RECEIVING)
-        SetDefaultReceivingAddress((string)GetSelectedReceivingAddress());
 }
 
 void CAddressBookDialog::OnListItemActivated(wxListEvent& event)
@@ -2600,6 +2598,8 @@ void CAddressBookDialog::OnButtonNew(wxCommandEvent& event)
 void CAddressBookDialog::OnButtonOK(wxCommandEvent& event)
 {
     // OK
+    if (nPage == RECEIVING && !fDuringSend)
+        SetDefaultReceivingAddress((string)GetSelectedReceivingAddress());
     EndModal(GetSelectedAddress() != "" ? 1 : 0);
 }
 

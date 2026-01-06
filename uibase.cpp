@@ -862,7 +862,7 @@ CYourAddressDialogBase::CYourAddressDialogBase( wxWindow* parent, wxWindowID id,
 	m_staticText45->SetFont( wxFont( 10, 70, 90, 90, false, wxEmptyString ) );
 	bSizer68->Add( m_staticText45, 0, wxALL, 10 );
 
-	m_listCtrl = new wxListCtrl( this, wxID_LISTCTRL, wxDefaultPosition, wxDefaultSize, wxLC_NO_SORT_HEADER|wxLC_REPORT|wxLC_SORT_ASCENDING );
+	m_listCtrl = new wxListCtrl( this, wxID_LISTCTRL, wxDefaultPosition, wxDefaultSize, wxLC_NO_SORT_HEADER|wxLC_REPORT|wxLC_SORT_ASCENDING|wxLC_EDIT_LABELS );
 	bSizer68->Add( m_listCtrl, 1, wxALL|wxEXPAND, 10 );
 
 	wxBoxSizer* bSizer69;
@@ -941,7 +941,7 @@ CAddressBookDialogBase::CAddressBookDialogBase( wxWindow* parent, wxWindowID id,
 
 	bSizer68->Add( m_staticText55, 0, wxTOP|wxRIGHT|wxLEFT, 8 );
 
-	m_listCtrlSending = new wxListCtrl( m_panelSending, wxID_LISTCTRLSENDING, wxDefaultPosition, wxDefaultSize, wxLC_NO_SORT_HEADER|wxLC_REPORT|wxLC_SORT_ASCENDING );
+	m_listCtrlSending = new wxListCtrl( m_panelSending, wxID_LISTCTRLSENDING, wxDefaultPosition, wxDefaultSize, wxLC_NO_SORT_HEADER|wxLC_REPORT|wxLC_SORT_ASCENDING|wxLC_EDIT_LABELS );
 	bSizer68->Add( m_listCtrlSending, 1, wxALL|wxEXPAND, 8 );
 
 	m_panelSending->SetSizer( bSizer68 );
@@ -963,7 +963,7 @@ CAddressBookDialogBase::CAddressBookDialogBase( wxWindow* parent, wxWindowID id,
 
 	bSizer681->Add( 0, 6, 0, wxEXPAND, 5 );
 
-	m_listCtrlReceiving = new wxListCtrl( m_panelReceiving, wxID_LISTCTRLRECEIVING, wxDefaultPosition, wxDefaultSize, wxLC_NO_SORT_HEADER|wxLC_REPORT|wxLC_SORT_ASCENDING );
+	m_listCtrlReceiving = new wxListCtrl( m_panelReceiving, wxID_LISTCTRLRECEIVING, wxDefaultPosition, wxDefaultSize, wxLC_NO_SORT_HEADER|wxLC_REPORT|wxLC_SORT_ASCENDING|wxLC_EDIT_LABELS );
 	bSizer681->Add( m_listCtrlReceiving, 1, wxALL|wxEXPAND, 8 );
 
 	m_panelReceiving->SetSizer( bSizer681 );

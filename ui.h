@@ -350,25 +350,42 @@ public:
             m_textCtrl2->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
         }
 #endif
-        int x = GetSize().GetWidth();
-        int y = GetSize().GetHeight();
         m_staticTextMessage1->SetLabel(strMessage1);
         m_textCtrl1->SetValue(strValue1);
-        y += wxString(strMessage1).Freq('\n') * 14;
+
         if (!strMessage2.empty())
         {
             m_staticTextMessage2->Show(true);
             m_staticTextMessage2->SetLabel(strMessage2);
             m_textCtrl2->Show(true);
             m_textCtrl2->SetValue(strValue2);
-            y += 46 + wxString(strMessage2).Freq('\n') * 14;
         }
+
+        Layout();
+        Fit();
+
+        int x = GetSize().GetWidth();
+        int y = GetSize().GetHeight();
+
+        // Ensure minimum size
+        if (x < 400) x = 400;
+        if (y < 130) y = 130;
+
+        // Add extra height for multiline messages
+        y += wxString(strMessage1).Freq('\n') * 14;
+        if (!strMessage2.empty())
+        {
+            y += wxString(strMessage2).Freq('\n') * 14;
+        }
+
         if (!fWindows)
         {
             x *= 1.14;
             y *= 1.14;
         }
+
         SetSize(x, y);
+        Centre();
     }
 
     // Custom
