@@ -478,6 +478,22 @@ bool CMyApp::OnInit2()
         strErrors += _("Error loading wallet.dat      \n");
     printf(" wallet      %15"PRI64d"ms\n", GetTimeMillis() - nStart);
 
+    // Initialize nLimitProcessors to CPU count - 1 if not set (leave 1 core for system)
+    if (nLimitProcessors == 1 && fFirstRun)
+    {
+#if wxUSE_GUI
+        int nProcessors = wxThread::GetCPUCount();
+#else
+        int nProcessors = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+        if (nProcessors > 1)
+        {
+            nLimitProcessors = nProcessors - 1;
+            CWalletDB().WriteSetting("nLimitProcessors", nLimitProcessors);
+            printf("Initialized nLimitProcessors to %d (leaving 1 core for system)\n", nLimitProcessors);
+        }
+    }
+
     printf("Done loading\n");
 
         //// debug print
@@ -769,6 +785,22 @@ bool AppInit(int argc, char* argv[])
     {
         fprintf(stderr, "Error loading wallet\n");
         return false;
+    }
+
+    // Initialize nLimitProcessors to CPU count - 1 if not set (leave 1 core for system)
+    if (nLimitProcessors == 1 && fFirstRun)
+    {
+#if wxUSE_GUI
+        int nProcessors = wxThread::GetCPUCount();
+#else
+        int nProcessors = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+        if (nProcessors > 1)
+        {
+            nLimitProcessors = nProcessors - 1;
+            CWalletDB().WriteSetting("nLimitProcessors", nLimitProcessors);
+            printf("Initialized nLimitProcessors to %d (leaving 1 core for system)\n", nLimitProcessors);
+        }
     }
 
     printf("Done loading\n");

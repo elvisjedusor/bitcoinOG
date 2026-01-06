@@ -126,10 +126,6 @@ class CMainFrameBase : public wxFrame
 		wxListCtrl* m_listCtrlSentReceived;
 		wxListCtrl* m_listCtrlSent;
 		wxListCtrl* m_listCtrlReceived;
-		wxPanel* m_panelSync;
-		wxGauge* m_gaugeSync;
-		wxStaticText* m_staticTextSyncStatus;
-		wxStaticText* m_staticTextSyncProgress;
 		CMainFrameBase( wxWindow* parent, wxWindowID id = wxID_MAINFRAME, const wxString& title = _("Bitcoin"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 820,560 ), long style = wxDEFAULT_FRAME_STYLE|wxRESIZE_BORDER|wxTAB_TRAVERSAL );
 		~CMainFrameBase();
 	
@@ -138,15 +134,16 @@ class CMainFrameBase : public wxFrame
 ///////////////////////////////////////////////////////////////////////////////
 /// Class CTxDetailsDialogBase
 ///////////////////////////////////////////////////////////////////////////////
-class CTxDetailsDialogBase : public wxDialog 
+class CTxDetailsDialogBase : public wxDialog
 {
 	private:
-	
+
 	protected:
 		wxHtmlWindow* m_htmlWin;
 		wxButton* m_buttonOK;
-		
+
 		// Virtual event handlers, overide them in your derived class
+		virtual void OnClose( wxCloseEvent& event ){ event.Skip(); }
 		virtual void OnButtonOK( wxCommandEvent& event ){ event.Skip(); }
 		
 	
@@ -190,8 +187,9 @@ class COptionsDialogBase : public wxDialog
 		wxButton* m_buttonOK;
 		wxButton* m_buttonCancel;
 		wxButton* m_buttonApply;
-		
+
 		// Virtual event handlers, overide them in your derived class
+		virtual void OnClose( wxCloseEvent& event ){ event.Skip(); }
 		virtual void OnListBox( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnKillFocusTransactionFee( wxFocusEvent& event ){ event.Skip(); }
 		virtual void OnCheckBoxLimitProcessors( wxCommandEvent& event ){ event.Skip(); }
@@ -212,21 +210,22 @@ class COptionsDialogBase : public wxDialog
 ///////////////////////////////////////////////////////////////////////////////
 /// Class CAboutDialogBase
 ///////////////////////////////////////////////////////////////////////////////
-class CAboutDialogBase : public wxDialog 
+class CAboutDialogBase : public wxDialog
 {
 	private:
-	
+
 	protected:
 		wxStaticBitmap* m_bitmap;
-		
+
 		wxStaticText* m_staticText40;
-		
+
 		wxStaticText* m_staticTextMain;
-		
-		
+
+
 		wxButton* m_buttonOK;
-		
+
 		// Virtual event handlers, overide them in your derived class
+		virtual void OnClose( wxCloseEvent& event ){ event.Skip(); }
 		virtual void OnButtonOK( wxCommandEvent& event ){ event.Skip(); }
 		
 	

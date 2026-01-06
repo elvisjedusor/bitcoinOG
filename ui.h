@@ -156,6 +156,7 @@ class CTxDetailsDialog : public CTxDetailsDialogBase
 {
 protected:
     // Event handlers
+    void OnClose(wxCloseEvent& event);
     void OnButtonOK(wxCommandEvent& event);
 
 public:
@@ -172,6 +173,7 @@ class COptionsDialog : public COptionsDialogBase
 {
 protected:
     // Event handlers
+    void OnClose(wxCloseEvent& event);
     void OnListBox(wxCommandEvent& event);
     void OnKillFocusTransactionFee(wxFocusEvent& event);
     void OnCheckBoxLimitProcessors(wxCommandEvent& event);
@@ -199,6 +201,7 @@ class CAboutDialog : public CAboutDialogBase
 {
 protected:
     // Event handlers
+    void OnClose(wxCloseEvent& event);
     void OnButtonOK(wxCommandEvent& event);
 
 public:
@@ -337,6 +340,18 @@ public:
                            const string& strMessage2="",
                            const string& strValue2="") : CGetTextFromUserDialogBase(parent, wxID_ANY, strCaption)
     {
+#ifndef __WXMSW__
+        SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+        SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+        if (m_textCtrl1) {
+            m_textCtrl1->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+            m_textCtrl1->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+        }
+        if (m_textCtrl2) {
+            m_textCtrl2->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+            m_textCtrl2->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+        }
+#endif
         int x = GetSize().GetWidth();
         int y = GetSize().GetHeight();
         m_staticTextMessage1->SetLabel(strMessage1);

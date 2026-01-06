@@ -255,11 +255,57 @@ CMainFrame::CMainFrame(wxWindow* parent) : CMainFrameBase(parent)
     SetIcon(wxICON(bitcoin));
 #else
     SetIcon(bitcoin80_xpm);
-    SetBackgroundColour(m_toolBar->GetBackgroundColour());
+    // Use system theme colors
+    wxColour bgColour = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    wxColour fgColour = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
+    wxColour panelBg = wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE);
+    wxColour textBg = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    wxColour textFg = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
+
+    SetBackgroundColour(panelBg);
+    SetForegroundColour(fgColour);
+    if (m_toolBar) {
+        m_toolBar->SetBackgroundColour(panelBg);
+        m_toolBar->SetForegroundColour(fgColour);
+    }
+    if (m_notebook) {
+        m_notebook->SetBackgroundColour(panelBg);
+        m_notebook->SetForegroundColour(fgColour);
+    }
+    if (m_panel9) {
+        m_panel9->SetBackgroundColour(panelBg);
+        m_panel9->SetForegroundColour(fgColour);
+    }
+    if (m_panel91) {
+        m_panel91->SetBackgroundColour(panelBg);
+        m_panel91->SetForegroundColour(fgColour);
+    }
+    if (m_panel92) {
+        m_panel92->SetBackgroundColour(panelBg);
+        m_panel92->SetForegroundColour(fgColour);
+    }
+    if (m_panel93) {
+        m_panel93->SetBackgroundColour(panelBg);
+        m_panel93->SetForegroundColour(fgColour);
+    }
+    if (m_staticText41) {
+        m_staticText41->SetBackgroundColour(panelBg);
+        m_staticText41->SetForegroundColour(fgColour);
+    }
     wxFont fontTmp = m_staticText41->GetFont();
     fontTmp.SetFamily(wxFONTFAMILY_TELETYPE);
     m_staticTextBalance->SetFont(fontTmp);
     m_staticTextBalance->SetSize(140, 17);
+    m_staticTextBalance->SetBackgroundColour(panelBg);
+    m_staticTextBalance->SetForegroundColour(fgColour);
+    if (m_textCtrlAddress) {
+        m_textCtrlAddress->SetBackgroundColour(textBg);
+        m_textCtrlAddress->SetForegroundColour(textFg);
+    }
+    if (m_choiceFilter) {
+        m_choiceFilter->SetBackgroundColour(textBg);
+        m_choiceFilter->SetForegroundColour(textFg);
+    }
     // resize to fit ubuntu's huge default font
     dResize = 1.22;
     SetSize(dResize * GetSize().GetWidth(), 1.15 * GetSize().GetHeight());
@@ -292,15 +338,32 @@ CMainFrame::CMainFrame(wxWindow* parent) : CMainFrameBase(parent)
         p->InsertColumn(4, _("Description"), wxLIST_FORMAT_LEFT,  dResize * 409 - nDateWidth);
         p->InsertColumn(5, _("Debit"),       wxLIST_FORMAT_RIGHT, dResize * 79);
         p->InsertColumn(6, _("Credit"),      wxLIST_FORMAT_RIGHT, dResize * 79);
+#ifndef __WXMSW__
+        p->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOX));
+        p->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOXTEXT));
+#endif
     }
 
-    // Init status bar
-    int pnWidths[3] = { -100, 88, 300 };
+    // Init status bar with 5 fields: each taking 20% of width
+    int pnWidths[5] = { -20, -20, -20, -20, -20 };
+    m_statusBar->SetFieldsCount(5, pnWidths);
+
+    // Increase status bar height for better vertical padding
+    m_statusBar->SetMinHeight(32);
+
 #ifndef __WXMSW__
-    pnWidths[1] = pnWidths[1] * 1.1 * dResize;
-    pnWidths[2] = pnWidths[2] * 1.1 * dResize;
+    if (m_statusBar) {
+        m_statusBar->SetBackgroundColour(panelBg);
+        m_statusBar->SetForegroundColour(fgColour);
+    }
 #endif
-    m_statusBar->SetFieldsCount(3, pnWidths);
+
+    // Style status bar fields with raised appearance for button-like look
+    int styles[5];
+    for (int i = 0; i < 5; i++) {
+        styles[i] = wxSB_RAISED;
+    }
+    m_statusBar->SetStatusStyles(5, styles);
 
     // Fill your address text box
     vector<unsigned char> vchPubKey;
@@ -390,6 +453,9 @@ void CMainFrame::OnIconize(wxIconizeEvent& event)
 void CMainFrame::OnMouseEvents(wxMouseEvent& event)
 {
     event.Skip();
+    // Skip entropy collection for mousewheel events to prevent scroll stuttering
+    if (event.GetEventType() == wxEVT_MOUSEWHEEL)
+        return;
     RandAddSeed();
     RAND_add(&event.m_x, sizeof(event.m_x), 0.25);
     RAND_add(&event.m_y, sizeof(event.m_y), 0.25);
@@ -799,11 +865,17 @@ void CMainFrame::OnIdle(wxIdleEvent& event)
 
         sort(vSorted.begin(), vSorted.end());
 
+        // Freeze list to prevent redraws during bulk insert (performance optimization)
+        m_listCtrl->Freeze();
+
         // Fill list control
         for (int i = 0; i < vSorted.size();)
         {
             if (fShutdown)
+            {
+                m_listCtrl->Thaw();
                 return;
+            }
             bool fEntered = false;
             TRY_CRITICAL_BLOCK(cs_mapWallet)
             {
@@ -813,9 +885,10 @@ void CMainFrame::OnIdle(wxIdleEvent& event)
                 if (mi != mapWallet.end())
                     InsertTransaction((*mi).second, true);
             }
-            if (!fEntered || i == 100 || i % 500 == 0)
-                wxYield();
         }
+
+        // Thaw to redraw all items at once
+        m_listCtrl->Thaw();
 
         printf("RefreshListCtrl done\n");
 
@@ -831,12 +904,19 @@ void CMainFrame::OnIdle(wxIdleEvent& event)
             TRY_CRITICAL_BLOCK(cs_mapWallet)
             {
                 nLastTime = GetTime();
+
+                // Freeze list to prevent redraws during time updates
+                m_listCtrl->Freeze();
+
                 for (map<uint256, CWalletTx>::iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
                 {
                     CWalletTx& wtx = (*it).second;
                     if (wtx.nTimeDisplayed && wtx.nTimeDisplayed != wtx.GetTxTime())
                         InsertTransaction(wtx, false);
                 }
+
+                // Thaw to redraw all updates at once
+                m_listCtrl->Thaw();
             }
         }
     }
@@ -869,6 +949,9 @@ void CMainFrame::RefreshStatusColumn()
         pindexLastBest = pindexBest;
         nLastRefreshed = nListViewUpdated;
 
+        // Freeze list to prevent redraws during updates (smooth scrolling)
+        m_listCtrl->Freeze();
+
         for (int nIndex = nStart; nIndex < min(nEnd, m_listCtrl->GetItemCount()); nIndex++)
         {
             uint256 hash((string)GetItemText(m_listCtrl, nIndex, 1));
@@ -887,6 +970,9 @@ void CMainFrame::RefreshStatusColumn()
             else
                 m_listCtrl->SetItem(nIndex, 2, FormatTxStatus(wtx));
         }
+
+        // Thaw to redraw updated items
+        m_listCtrl->Thaw();
     }
 }
 
@@ -971,6 +1057,10 @@ void CMainFrame::OnPaintListCtrl(wxPaintEvent& event)
                 string strTop;
                 if (m_listCtrl->GetItemCount())
                     strTop = (string)m_listCtrl->GetItemText(0);
+
+                // Freeze list to prevent redraws during batch updates
+                m_listCtrl->Freeze();
+
                 foreach(uint256 hash, vWalletUpdated)
                 {
                     map<uint256, CWalletTx>::iterator mi = mapWallet.find(hash);
@@ -978,6 +1068,10 @@ void CMainFrame::OnPaintListCtrl(wxPaintEvent& event)
                         InsertTransaction((*mi).second, false);
                 }
                 vWalletUpdated.clear();
+
+                // Thaw to redraw all updates at once
+                m_listCtrl->Thaw();
+
                 if (m_listCtrl->GetItemCount() && strTop != (string)m_listCtrl->GetItemText(0))
                     m_listCtrl->ScrollList(0, INT_MIN/2);
             }
@@ -1004,20 +1098,26 @@ void CMainFrame::OnPaintListCtrl(wxPaintEvent& event)
     // Update status column of visible items only
     RefreshStatusColumn();
 
-    // Update status bar
-    string strGen = "";
+    // Update status bar - 5 separate fields
+    // Field 0: Hashrate (set by mining thread, clear when not mining)
+    if (!fGenerateBitcoins)
+        m_statusBar->SetStatusText("", 0);
+
+    // Field 1: Mining status (with leading space for padding)
+    string strMining = "";
     if (fGenerateBitcoins)
     {
         int nMinerThreads = vnThreadsRunning[3];
         if (nMinerThreads > 0)
-            strGen = strprintf(_("    Mining (%d)"), nMinerThreads);
+            strMining = strprintf(_(" Mining (%d)"), nMinerThreads);
         else
-            strGen = _("    Mining");
+            strMining = _(" Mining");
     }
     if (fGenerateBitcoins && vNodes.empty())
-        strGen = _("(not connected)");
-    m_statusBar->SetStatusText(strGen, 1);
+        strMining = _(" (not connected)");
+    m_statusBar->SetStatusText(strMining, 1);
 
+    // Field 2: Connections
     int nNumConnections = 0;
     int nHighestPeerHeight = 0;
     CRITICAL_BLOCK(cs_vNodes)
@@ -1027,35 +1127,30 @@ void CMainFrame::OnPaintListCtrl(wxPaintEvent& event)
             if (pnode->nStartingHeight > nHighestPeerHeight)
                 nHighestPeerHeight = pnode->nStartingHeight;
     }
+    string strConnections = strprintf(_(" %d connection%s"), nNumConnections, nNumConnections == 1 ? "" : "s");
+    m_statusBar->SetStatusText(strConnections, 2);
 
-    string strStatus = strprintf(_("     %d conn     %d blocks"), nNumConnections, nBestHeight + 1);
-    m_statusBar->SetStatusText(strStatus, 2);
+    // Field 3: Blocks
+    string strBlocks;
+    if (nHighestPeerHeight > 0 && nBestHeight < nHighestPeerHeight - 5)
+        strBlocks = strprintf(_(" %d / %d blocks"), nBestHeight + 1, nHighestPeerHeight);
+    else
+        strBlocks = strprintf(_(" %d blocks"), nBestHeight + 1);
+    m_statusBar->SetStatusText(strBlocks, 3);
 
-    if (fDebug && GetTime() - nThreadSocketHandlerHeartbeat > 60)
-        m_statusBar->SetStatusText("     ERROR: ThreadSocketHandler has stopped", 0);
-
-    if (nNumConnections == 0)
+    // Field 4: Transactions (only show if > 0)
+    if (nTransactionCount > 0)
     {
-        m_staticTextSyncStatus->SetLabel(_("Offline"));
-        m_staticTextSyncStatus->SetForegroundColour(wxColour(200, 60, 60));
-        m_gaugeSync->SetValue(0);
-        m_staticTextSyncProgress->SetLabel(_("No connections"));
-    }
-    else if (nHighestPeerHeight > 0 && nBestHeight < nHighestPeerHeight - 5)
-    {
-        m_staticTextSyncStatus->SetLabel(_("Syncing"));
-        m_staticTextSyncStatus->SetForegroundColour(wxColour(200, 150, 0));
-        int nPercent = (nHighestPeerHeight > 0) ? (nBestHeight * 100 / nHighestPeerHeight) : 0;
-        m_gaugeSync->SetValue(nPercent);
-        m_staticTextSyncProgress->SetLabel(wxString::Format(_("%d / %d blocks"), nBestHeight + 1, nHighestPeerHeight));
+        string strTransactions = strprintf(_(" %d transaction%s"), nTransactionCount, nTransactionCount == 1 ? "" : "s");
+        m_statusBar->SetStatusText(strTransactions, 4);
     }
     else
     {
-        m_staticTextSyncStatus->SetLabel(_("Synced"));
-        m_staticTextSyncStatus->SetForegroundColour(wxColour(40, 160, 40));
-        m_gaugeSync->SetValue(100);
-        m_staticTextSyncProgress->SetLabel(wxString::Format(_("%d blocks"), nBestHeight + 1));
+        m_statusBar->SetStatusText("", 4);
     }
+
+    if (fDebug && GetTime() - nThreadSocketHandlerHeartbeat > 60)
+        m_statusBar->SetStatusText("ERROR: ThreadSocketHandler has stopped", 0);
 
     // Update receiving address
     string strDefaultAddress = PubKeyToAddress(vchDefaultKey);
@@ -1222,6 +1317,10 @@ void CMainFrame::OnListItemActivated(wxListEvent& event)
 
 CTxDetailsDialog::CTxDetailsDialog(wxWindow* parent, CWalletTx wtx) : CTxDetailsDialogBase(parent)
 {
+#ifndef __WXMSW__
+    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+    SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+#endif
     CRITICAL_BLOCK(cs_mapAddressBook)
     {
         string strHTML;
@@ -1461,10 +1560,14 @@ CTxDetailsDialog::CTxDetailsDialog(wxWindow* parent, CWalletTx wtx) : CTxDetails
     }
 }
 
+void CTxDetailsDialog::OnClose(wxCloseEvent& event)
+{
+    EndModal(false);
+}
+
 void CTxDetailsDialog::OnButtonOK(wxCommandEvent& event)
 {
-    Close();
-    //Destroy();
+    EndModal(true);
 }
 
 
@@ -1478,6 +1581,26 @@ void CTxDetailsDialog::OnButtonOK(wxCommandEvent& event)
 
 COptionsDialog::COptionsDialog(wxWindow* parent) : COptionsDialogBase(parent)
 {
+#ifndef __WXMSW__
+    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+    SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+    if (m_listBox) {
+        m_listBox->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOX));
+        m_listBox->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOXTEXT));
+    }
+    if (m_textCtrlTransactionFee) {
+        m_textCtrlTransactionFee->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+        m_textCtrlTransactionFee->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+    }
+    if (m_textCtrlProxyIP) {
+        m_textCtrlProxyIP->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+        m_textCtrlProxyIP->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+    }
+    if (m_textCtrlProxyPort) {
+        m_textCtrlProxyPort->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+        m_textCtrlProxyPort->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+    }
+#endif
     // Set up list box of page choices
     m_listBox->Append(_("Main"));
     //m_listBox->Append(_("Test 2"));
@@ -1490,13 +1613,19 @@ COptionsDialog::COptionsDialog(wxWindow* parent) : COptionsDialogBase(parent)
 
     // Init values
     m_textCtrlTransactionFee->SetValue(FormatMoney(nTransactionFee));
-    m_checkBoxLimitProcessors->SetValue(fLimitProcessors);
-    m_spinCtrlLimitProcessors->Enable(fLimitProcessors);
+
+    // Detect CPU count and setup processor limit controls
     int nProcessors = wxThread::GetCPUCount();
     if (nProcessors < 1)
         nProcessors = 999;
+
+    m_checkBoxLimitProcessors->SetValue(fLimitProcessors);
     m_spinCtrlLimitProcessors->SetRange(1, nProcessors);
     m_spinCtrlLimitProcessors->SetValue(nLimitProcessors);
+    m_spinCtrlLimitProcessors->Enable(fLimitProcessors);
+
+    // Update label to show detected CPU count
+    m_staticText35->SetLabel(wxString::Format(_("processors (detected: %d)"), nProcessors));
     m_checkBoxStartOnSystemStartup->SetValue(fTmpStartOnSystemStartup = GetStartOnSystemStartup());
     m_checkBoxMinimizeToTray->SetValue(fMinimizeToTray);
     m_checkBoxMinimizeOnClose->SetValue(fMinimizeOnClose);
@@ -1567,15 +1696,20 @@ void COptionsDialog::OnKillFocusProxy(wxFocusEvent& event)
 }
 
 
+void COptionsDialog::OnClose(wxCloseEvent& event)
+{
+    EndModal(false);
+}
+
 void COptionsDialog::OnButtonOK(wxCommandEvent& event)
 {
     OnButtonApply(event);
-    Close();
+    EndModal(true);
 }
 
 void COptionsDialog::OnButtonCancel(wxCommandEvent& event)
 {
-    Close();
+    EndModal(false);
 }
 
 void COptionsDialog::OnButtonApply(wxCommandEvent& event)
@@ -1637,6 +1771,10 @@ void COptionsDialog::OnButtonApply(wxCommandEvent& event)
 
 CAboutDialog::CAboutDialog(wxWindow* parent) : CAboutDialogBase(parent)
 {
+#ifndef __WXMSW__
+    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+    SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+#endif
     m_staticTextVersion->SetLabel(strprintf(_("version %d.%d.%d beta"), VERSION/10000, (VERSION/100)%100, VERSION%100));
 
     // Change (c) into UTF-8 or ANSI copyright symbol
@@ -1659,9 +1797,14 @@ CAboutDialog::CAboutDialog(wxWindow* parent) : CAboutDialogBase(parent)
 #endif
 }
 
+void CAboutDialog::OnClose(wxCloseEvent& event)
+{
+    EndModal(false);
+}
+
 void CAboutDialog::OnButtonOK(wxCommandEvent& event)
 {
-    Close();
+    EndModal(true);
 }
 
 
@@ -1676,6 +1819,26 @@ void CAboutDialog::OnButtonOK(wxCommandEvent& event)
 
 CSendDialog::CSendDialog(wxWindow* parent, const wxString& strAddress) : CSendDialogBase(parent)
 {
+#ifndef __WXMSW__
+    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+    SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+    if (m_textCtrlAddress) {
+        m_textCtrlAddress->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+        m_textCtrlAddress->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+    }
+    if (m_textCtrlAmount) {
+        m_textCtrlAmount->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+        m_textCtrlAmount->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+    }
+    if (m_textCtrlFrom) {
+        m_textCtrlFrom->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+        m_textCtrlFrom->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+    }
+    if (m_textCtrlMessage) {
+        m_textCtrlMessage->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+        m_textCtrlMessage->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+    }
+#endif
     // Init
     m_textCtrlAddress->SetValue(strAddress);
     m_choiceTransferType->SetSelection(0);
@@ -1853,6 +2016,14 @@ void CSendDialog::OnButtonCancel(wxCommandEvent& event)
 
 CSendingDialog::CSendingDialog(wxWindow* parent, const CAddress& addrIn, int64 nPriceIn, const CWalletTx& wtxIn) : CSendingDialogBase(NULL) // we have to give null so parent can't destroy us
 {
+#ifndef __WXMSW__
+    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+    SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+    if (m_textCtrlStatus) {
+        m_textCtrlStatus->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+        m_textCtrlStatus->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+    }
+#endif
     addr = addrIn;
     nPrice = nPriceIn;
     wtx = wtxIn;
@@ -1900,7 +2071,7 @@ void CSendingDialog::OnClose(wxCloseEvent& event)
 {
     if (!event.CanVeto() || fWorkDone || fAbort || !fCanCancel)
     {
-        Close();
+        EndModal(fWorkDone);
     }
     else
     {
@@ -1913,7 +2084,7 @@ void CSendingDialog::OnClose(wxCloseEvent& event)
 void CSendingDialog::OnButtonOK(wxCommandEvent& event)
 {
     if (fWorkDone)
-        Close();
+        EndModal(true);
 }
 
 void CSendingDialog::OnButtonCancel(wxCommandEvent& event)
@@ -2182,6 +2353,10 @@ void CSendingDialog::OnReply3(CDataStream& vRecv)
 
 CAddressBookDialog::CAddressBookDialog(wxWindow* parent, const wxString& strInitSelected, int nPageIn, bool fDuringSendIn) : CAddressBookDialogBase(parent)
 {
+#ifndef __WXMSW__
+    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+    SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
+#endif
     // Set initially selected page
     wxNotebookEvent event;
     event.SetSelection(nPageIn);
@@ -2200,9 +2375,17 @@ CAddressBookDialog::CAddressBookDialog(wxWindow* parent, const wxString& strInit
     // Init column headers
     m_listCtrlSending->InsertColumn(0, _("Name"), wxLIST_FORMAT_LEFT, 200);
     m_listCtrlSending->InsertColumn(1, _("Address"), wxLIST_FORMAT_LEFT, 350);
+#ifndef __WXMSW__
+    m_listCtrlSending->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOX));
+    m_listCtrlSending->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOXTEXT));
+#endif
     m_listCtrlSending->SetFocus();
     m_listCtrlReceiving->InsertColumn(0, _("Label"), wxLIST_FORMAT_LEFT, 200);
     m_listCtrlReceiving->InsertColumn(1, _("Bitcoin Address"), wxLIST_FORMAT_LEFT, 350);
+#ifndef __WXMSW__
+    m_listCtrlReceiving->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOX));
+    m_listCtrlReceiving->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOXTEXT));
+#endif
     m_listCtrlReceiving->SetFocus();
 
     // Fill listctrl with address book data

@@ -60,9 +60,9 @@ CMainFrameBase::CMainFrameBase( wxWindow* parent, wxWindowID id, const wxString&
 	m_toolBar->AddTool( wxID_BUTTONSEND, _("  Send Coins  "), wxBitmap( send20_xpm ), wxNullBitmap, wxITEM_NORMAL, _("Send coins to another address"), wxEmptyString );
 	m_toolBar->AddTool( wxID_BUTTONRECEIVE, _("  Address Book  "), wxBitmap( addressbook20_xpm ), wxNullBitmap, wxITEM_NORMAL, _("Manage your address book"), wxEmptyString );
 	m_toolBar->Realize();
-	
-	m_statusBar = this->CreateStatusBar( 1, wxST_SIZEGRIP, wxID_ANY );
-	m_statusBar->SetBackgroundColour( wxColour( 240, 240, 240 ) );
+
+	m_statusBar = this->CreateStatusBar( 1, wxST_SIZEGRIP|wxSB_SUNKEN, wxID_ANY );
+	m_statusBar->SetBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_BTNFACE ) );
 	
 	wxBoxSizer* bSizer2;
 	bSizer2 = new wxBoxSizer( wxVERTICAL );
@@ -107,7 +107,7 @@ CMainFrameBase::CMainFrameBase( wxWindow* parent, wxWindowID id, const wxString&
 	m_staticTextBalance = new wxStaticText( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize( 180,28 ), wxALIGN_RIGHT|wxST_NO_AUTORESIZE );
 	m_staticTextBalance->Wrap( -1 );
 	m_staticTextBalance->SetFont( wxFont( 12, 70, 90, 92, false, wxEmptyString ) );
-	m_staticTextBalance->SetBackgroundColour( wxColour( 255, 255, 255 ) );
+	m_staticTextBalance->SetBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_WINDOW ) );
 
 	bSizer66->Add( m_staticTextBalance, 0, wxALIGN_CENTER_VERTICAL|wxALL, 8 );
 
@@ -175,26 +175,7 @@ CMainFrameBase::CMainFrameBase( wxWindow* parent, wxWindowID id, const wxString&
 
 	bSizer2->Add( m_notebook, 1, wxEXPAND|wxALL, 8 );
 
-	m_panelSync = new wxPanel( this, wxID_ANY, wxDefaultPosition, wxSize( -1, 36 ), wxTAB_TRAVERSAL );
-	m_panelSync->SetBackgroundColour( wxColour( 245, 245, 245 ) );
-	wxBoxSizer* bSizerSync = new wxBoxSizer( wxHORIZONTAL );
-
-	m_staticTextSyncStatus = new wxStaticText( m_panelSync, wxID_ANY, _("Connecting..."), wxDefaultPosition, wxSize( 100, -1 ), 0 );
-	m_staticTextSyncStatus->SetFont( wxFont( 9, 70, 90, 92, false, wxEmptyString ) );
-	bSizerSync->Add( m_staticTextSyncStatus, 0, wxALIGN_CENTER_VERTICAL|wxLEFT, 10 );
-
-	m_gaugeSync = new wxGauge( m_panelSync, wxID_ANY, 100, wxDefaultPosition, wxSize( 200, 16 ), wxGA_HORIZONTAL|wxGA_SMOOTH );
-	m_gaugeSync->SetValue( 0 );
-	bSizerSync->Add( m_gaugeSync, 0, wxALIGN_CENTER_VERTICAL|wxLEFT|wxRIGHT, 10 );
-
-	m_staticTextSyncProgress = new wxStaticText( m_panelSync, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize( 150, -1 ), 0 );
-	m_staticTextSyncProgress->SetFont( wxFont( 9, 70, 90, 90, false, wxEmptyString ) );
-	bSizerSync->Add( m_staticTextSyncProgress, 1, wxALIGN_CENTER_VERTICAL|wxRIGHT, 10 );
-
-	m_panelSync->SetSizer( bSizerSync );
-	m_panelSync->Layout();
-
-	bSizer2->Add( m_panelSync, 0, wxEXPAND|wxLEFT|wxRIGHT|wxBOTTOM, 8 );
+	bSizer2->Add( 0, 10, 0, wxEXPAND, 5 );
 
 	this->SetSizer( bSizer2 );
 	this->Layout();
@@ -342,14 +323,16 @@ CTxDetailsDialogBase::CTxDetailsDialogBase( wxWindow* parent, wxWindowID id, con
 	
 	this->SetSizer( bSizer64 );
 	this->Layout();
-	
+
 	// Connect Events
+	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( CTxDetailsDialogBase::OnClose ) );
 	m_buttonOK->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CTxDetailsDialogBase::OnButtonOK ), NULL, this );
 }
 
 CTxDetailsDialogBase::~CTxDetailsDialogBase()
 {
 	// Disconnect Events
+	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( CTxDetailsDialogBase::OnClose ) );
 	m_buttonOK->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CTxDetailsDialogBase::OnButtonOK ), NULL, this );
 }
 
@@ -409,7 +392,7 @@ COptionsDialogBase::COptionsDialogBase( wxWindow* parent, wxWindowID id, const w
 
 	bSizer71->Add( m_checkBoxLimitProcessors, 0, wxALIGN_CENTER_VERTICAL|wxALL, 8 );
 
-	m_spinCtrlLimitProcessors = new wxSpinCtrl( m_panelMain, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize( 80,-1 ), wxSP_ARROW_KEYS, 1, 999, 1 );
+	m_spinCtrlLimitProcessors = new wxSpinCtrl( m_panelMain, wxID_ANY, wxT("1"), wxDefaultPosition, wxDefaultSize, wxSP_ARROW_KEYS, 1, 999, 1 );
 	bSizer71->Add( m_spinCtrlLimitProcessors, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 8 );
 
 	m_staticText35 = new wxStaticText( m_panelMain, wxID_ANY, _("processors"), wxDefaultPosition, wxDefaultSize, 0 );
@@ -518,8 +501,10 @@ COptionsDialogBase::COptionsDialogBase( wxWindow* parent, wxWindowID id, const w
 	
 	this->SetSizer( bSizer55 );
 	this->Layout();
-	
+
+
 	// Connect Events
+	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( COptionsDialogBase::OnClose ) );
 	m_listBox->Connect( wxEVT_COMMAND_LISTBOX_SELECTED, wxCommandEventHandler( COptionsDialogBase::OnListBox ), NULL, this );
 	m_textCtrlTransactionFee->Connect( wxEVT_KILL_FOCUS, wxFocusEventHandler( COptionsDialogBase::OnKillFocusTransactionFee ), NULL, this );
 	m_checkBoxLimitProcessors->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( COptionsDialogBase::OnCheckBoxLimitProcessors ), NULL, this );
@@ -535,6 +520,7 @@ COptionsDialogBase::COptionsDialogBase( wxWindow* parent, wxWindowID id, const w
 COptionsDialogBase::~COptionsDialogBase()
 {
 	// Disconnect Events
+	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( COptionsDialogBase::OnClose ) );
 	m_listBox->Disconnect( wxEVT_COMMAND_LISTBOX_SELECTED, wxCommandEventHandler( COptionsDialogBase::OnListBox ), NULL, this );
 	m_textCtrlTransactionFee->Disconnect( wxEVT_KILL_FOCUS, wxFocusEventHandler( COptionsDialogBase::OnKillFocusTransactionFee ), NULL, this );
 	m_checkBoxLimitProcessors->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( COptionsDialogBase::OnCheckBoxLimitProcessors ), NULL, this );
@@ -616,14 +602,16 @@ CAboutDialogBase::CAboutDialogBase( wxWindow* parent, wxWindowID id, const wxStr
 	
 	this->SetSizer( bSizer63 );
 	this->Layout();
-	
+
 	// Connect Events
+	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( CAboutDialogBase::OnClose ) );
 	m_buttonOK->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CAboutDialogBase::OnButtonOK ), NULL, this );
 }
 
 CAboutDialogBase::~CAboutDialogBase()
 {
 	// Disconnect Events
+	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( CAboutDialogBase::OnClose ) );
 	m_buttonOK->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CAboutDialogBase::OnButtonOK ), NULL, this );
 }
 
@@ -1068,8 +1056,9 @@ CGetTextFromUserDialogBase::CGetTextFromUserDialogBase( wxWindow* parent, wxWind
 	m_staticTextMessage1->SetFont( wxFont( 10, 70, 90, 90, false, wxEmptyString ) );
 	bSizer81->Add( m_staticTextMessage1, 0, wxTOP|wxRIGHT|wxLEFT, 8 );
 
-	m_textCtrl1 = new wxTextCtrl( this, wxID_TEXTCTRL, wxEmptyString, wxDefaultPosition, wxSize(-1, 28), wxTE_PROCESS_ENTER );
+	m_textCtrl1 = new wxTextCtrl( this, wxID_TEXTCTRL, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER );
 	m_textCtrl1->SetFont( wxFont( 10, 70, 90, 90, false, wxEmptyString ) );
+	m_textCtrl1->SetMinSize( wxSize( -1, 32 ) );
 	bSizer81->Add( m_textCtrl1, 0, wxALL|wxEXPAND, 8 );
 
 	m_staticTextMessage2 = new wxStaticText( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
@@ -1079,8 +1068,9 @@ CGetTextFromUserDialogBase::CGetTextFromUserDialogBase( wxWindow* parent, wxWind
 
 	bSizer81->Add( m_staticTextMessage2, 0, wxTOP|wxRIGHT|wxLEFT, 8 );
 
-	m_textCtrl2 = new wxTextCtrl( this, wxID_TEXTCTRL, wxEmptyString, wxDefaultPosition, wxSize(-1, 28), wxTE_PROCESS_ENTER );
+	m_textCtrl2 = new wxTextCtrl( this, wxID_TEXTCTRL, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER );
 	m_textCtrl2->SetFont( wxFont( 10, 70, 90, 90, false, wxEmptyString ) );
+	m_textCtrl2->SetMinSize( wxSize( -1, 32 ) );
 	m_textCtrl2->Hide();
 
 	bSizer81->Add( m_textCtrl2, 0, wxALL|wxEXPAND, 8 );
