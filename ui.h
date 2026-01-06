@@ -18,8 +18,6 @@ static const bool fGUI=false;
 
 // Define stubs for non-GUI builds
 #if !wxUSE_GUI
-#define wxOK 0x00000004
-#define wxICON_ERROR 0x00000200
 typedef void* wxWindow;
 typedef std::string wxString;
 #endif

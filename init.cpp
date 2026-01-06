@@ -463,20 +463,20 @@ bool CMyApp::OnInit2()
     nStart = GetTimeMillis();
     if (!LoadAddresses())
         strErrors += _("Error loading addr.dat      \n");
-    printf(" addresses   %15"PRI64d"ms\n", GetTimeMillis() - nStart);
+    printf(" addresses   %15" PRI64d "ms\n", GetTimeMillis() - nStart);
 
     printf("Loading block index...\n");
     nStart = GetTimeMillis();
     if (!LoadBlockIndex())
         strErrors += _("Error loading blkindex.dat      \n");
-    printf(" block index %15"PRI64d"ms\n", GetTimeMillis() - nStart);
+    printf(" block index %15" PRI64d "ms\n", GetTimeMillis() - nStart);
 
     printf("Loading wallet...\n");
     nStart = GetTimeMillis();
     bool fFirstRun;
     if (!LoadWallet(fFirstRun))
         strErrors += _("Error loading wallet.dat      \n");
-    printf(" wallet      %15"PRI64d"ms\n", GetTimeMillis() - nStart);
+    printf(" wallet      %15" PRI64d "ms\n", GetTimeMillis() - nStart);
 
     // Initialize nLimitProcessors to CPU count - 1 if not set (leave 1 core for system)
     if (nLimitProcessors == 1 && fFirstRun)

@@ -245,7 +245,7 @@ public:
 
 inline string i64tostr(int64 n)
 {
-    return strprintf("%"PRI64d, n);
+    return strprintf("%" PRI64d, n);
 }
 
 inline string itostr(int n)
