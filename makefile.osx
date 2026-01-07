@@ -1,65 +1,165 @@
 # Copyright (c) 2009-2010 Satoshi Nakamoto
 # Distributed under the MIT/X11 software license, see the accompanying
 # file license.txt or http://www.opensource.org/licenses/mit-license.php.
+#
+# Bitok: Modernized for macOS 11.0+ (Big Sur and later)
+# Supports Apple Silicon (arm64) and Intel (x86_64)
 
-# Mac OS X makefile for Bitok
-# Laszlo Hanyecz (solar@heliacal.net)
+CXX ?= clang++
+HOMEBREW_PREFIX ?= $(shell brew --prefix 2>/dev/null || echo /usr/local)
 
-DEPSDIR=/Users/macosuser/bit/deps
+# Architecture - build universal binary by default
+ARCH ?= arm64 x86_64
+ARCH_FLAGS = $(foreach arch,$(ARCH),-arch $(arch))
 
-INCLUDEPATHS= \
- -I"$(DEPSDIR)/include"
+# Compiler flags
+CXXFLAGS = -std=c++11 -O2 -Wno-invalid-offsetof -Wformat -Wno-deprecated-declarations
+CXXFLAGS += -mmacosx-version-min=11.0 $(ARCH_FLAGS)
 
-LIBPATHS= \
- -L"$(DEPSDIR)/lib"
+# wxWidgets configuration (for GUI builds)
+WXCONFIG ?= $(HOMEBREW_PREFIX)/bin/wx-config
+WXCXXFLAGS := $(shell $(WXCONFIG) --cxxflags 2>/dev/null || echo "-DwxUSE_GUI=0")
+WXLIBS := $(shell $(WXCONFIG) --libs std 2>/dev/null || echo "")
 
-WXLIBS=$(shell $(DEPSDIR)/bin/wx-config --libs --static)
+# Include paths - Homebrew locations
+INCLUDEPATHS = \
+    -I"$(HOMEBREW_PREFIX)/include" \
+    -I"$(HOMEBREW_PREFIX)/opt/openssl@3/include" \
+    -I"$(HOMEBREW_PREFIX)/opt/berkeley-db@4/include" \
+    -I"."
 
-LIBS= -dead_strip \
- $(DEPSDIR)/lib/libdb_cxx-4.8.a \
- $(DEPSDIR)/lib/libboost_system.a \
- $(DEPSDIR)/lib/libboost_filesystem.a \
- $(DEPSDIR)/lib/libcrypto.a 
+# Library paths - Homebrew locations
+LIBPATHS = \
+    -L"$(HOMEBREW_PREFIX)/lib" \
+    -L"$(HOMEBREW_PREFIX)/opt/openssl@3/lib" \
+    -L"$(HOMEBREW_PREFIX)/opt/berkeley-db@4/lib"
 
-WXDEFS=$(shell $(DEPSDIR)/bin/wx-config --cxxflags) -DNOPCH -DMSG_NOSIGNAL=0
+# Libraries for daemon (no GUI)
+LIBS_DAEMON = \
+    -lboost_system \
+    -lboost_filesystem \
+    -ldb_cxx-4.8 \
+    -lssl \
+    -lcrypto \
+    -lpthread
 
-DEBUGFLAGS=-g -DwxDEBUG_LEVEL=0
-# ppc doesn't work because we don't support big-endian
-CFLAGS=-mmacosx-version-min=10.5 -arch i386 -arch x86_64 -O2 -Wno-invalid-offsetof -Wformat $(DEBUGFLAGS) $(WXDEFS) $(INCLUDEPATHS)
-HEADERS=headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
-    script.h db.h net.h irc.h main.h rpc.h uibase.h ui.h init.h sha.h
+# Libraries for GUI
+LIBS_GUI = $(WXLIBS) $(LIBS_DAEMON)
 
+# Defines
+DEFS = -DNOPCH -D_FILE_OFFSET_BITS=64 -DOPENSSL_SUPPRESS_DEPRECATED -DMAC_OSX -DMSG_NOSIGNAL=0
+DEFS_GUI = $(DEFS) -DwxUSE_GUI=1
+DEFS_DAEMON = $(DEFS) -DwxUSE_GUI=0
 
-all: bitok
+# Headers
+HEADERS = headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
+    script.h bitcoin_db.h db_cxx_compat.h net.h irc.h main.h rpc.h uibase.h ui.h init.h sha.h
 
+# Object files for GUI
+OBJS_GUI = \
+    obj/gui/util.o \
+    obj/gui/script.o \
+    obj/gui/bitcoin_db.o \
+    obj/gui/net.o \
+    obj/gui/irc.o \
+    obj/gui/main.o \
+    obj/gui/rpc.o \
+    obj/gui/init.o \
+    obj/gui/ui.o \
+    obj/gui/uibase.o \
+    obj/sha.o
 
-obj/%.o: %.cpp $(HEADERS)
-	g++ -c $(CFLAGS) -o $@ $<
+# Object files for daemon
+OBJS_DAEMON = \
+    obj/nogui/util.o \
+    obj/nogui/script.o \
+    obj/nogui/bitcoin_db.o \
+    obj/nogui/net.o \
+    obj/nogui/irc.o \
+    obj/nogui/main.o \
+    obj/nogui/rpc.o \
+    obj/nogui/init.o \
+    obj/sha.o
 
-obj/sha.o: sha.cpp sha.h
-	g++ -c $(CFLAGS) -O3 -o $@ $<
+# Targets
+all: bitokd bitok
 
-OBJS= \
-    obj/util.o \
-    obj/script.o \
-    obj/db.o \
-    obj/net.o \
-    obj/irc.o \
-    obj/main.o \
-    obj/rpc.o \
-    obj/init.o
+# Individual targets
+daemon: bitokd
+gui: bitok
 
-bitok: $(OBJS) obj/ui.o obj/uibase.o obj/sha.o
-	g++ $(CFLAGS) -o $@ $(LIBPATHS) $^ $(WXLIBS) $(LIBS)
+# Daemon version (no GUI)
+bitokd: directories $(OBJS_DAEMON)
+	$(CXX) $(CXXFLAGS) $(DEFS_DAEMON) -o $@ $(LIBPATHS) $(OBJS_DAEMON) $(LIBS_DAEMON)
+	@echo "bitokd built successfully"
 
+# GUI version (requires wxWidgets)
+bitok: directories $(OBJS_GUI)
+	$(CXX) $(CXXFLAGS) $(DEFS_GUI) -o $@ $(LIBPATHS) $(OBJS_GUI) $(LIBS_GUI)
+	@echo "bitok GUI built successfully"
 
+# Create object directories
+directories:
+	@mkdir -p obj
+	@mkdir -p obj/gui
+	@mkdir -p obj/nogui
+
+# GUI object files
+obj/gui/%.o: %.cpp $(HEADERS)
+	$(CXX) -c $(CXXFLAGS) $(DEFS_GUI) $(WXCXXFLAGS) $(INCLUDEPATHS) -o $@ $<
+
+# Daemon object files (no GUI)
 obj/nogui/%.o: %.cpp $(HEADERS)
-	g++ -c $(CFLAGS) -DwxUSE_GUI=0 -o $@ $<
+	$(CXX) -c $(CXXFLAGS) $(DEFS_DAEMON) $(INCLUDEPATHS) -o $@ $<
 
-bitokd: $(OBJS:obj/%=obj/nogui/%) obj/sha.o
-	g++ $(CFLAGS) -o $@ $(LIBPATHS) $^ $(WXLIBS) $(LIBS)
+# SHA optimization
+obj/sha.o: sha.cpp sha.h
+	$(CXX) -c $(CXXFLAGS) -O3 $(DEFS) $(INCLUDEPATHS) -o $@ $<
 
-
+# Clean
 clean:
-	-rm -f obj/*.o
-	-rm -f obj/nogui/*.o
+	-rm -f bitok bitokd
+	-rm -rf obj
+	-rm -f headers.h.gch
+	-rm -rf Bitok.app
+
+# Installation
+install: bitokd
+	install -m 755 bitokd /usr/local/bin/
+
+install-gui: bitok
+	install -m 755 bitok /usr/local/bin/
+
+# Create .app bundle for distribution
+bundle: bitok
+	@echo "Creating Bitok.app bundle..."
+	@mkdir -p Bitok.app/Contents/MacOS
+	@mkdir -p Bitok.app/Contents/Resources
+	@cp bitok Bitok.app/Contents/MacOS/
+	@echo '<?xml version="1.0" encoding="UTF-8"?>' > Bitok.app/Contents/Info.plist
+	@echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> Bitok.app/Contents/Info.plist
+	@echo '<plist version="1.0">' >> Bitok.app/Contents/Info.plist
+	@echo '<dict>' >> Bitok.app/Contents/Info.plist
+	@echo '  <key>CFBundleExecutable</key>' >> Bitok.app/Contents/Info.plist
+	@echo '  <string>bitok</string>' >> Bitok.app/Contents/Info.plist
+	@echo '  <key>CFBundleIdentifier</key>' >> Bitok.app/Contents/Info.plist
+	@echo '  <string>org.bitok.Bitok</string>' >> Bitok.app/Contents/Info.plist
+	@echo '  <key>CFBundleName</key>' >> Bitok.app/Contents/Info.plist
+	@echo '  <string>Bitok</string>' >> Bitok.app/Contents/Info.plist
+	@echo '  <key>CFBundleVersion</key>' >> Bitok.app/Contents/Info.plist
+	@echo '  <string>0.3.0</string>' >> Bitok.app/Contents/Info.plist
+	@echo '  <key>CFBundleShortVersionString</key>' >> Bitok.app/Contents/Info.plist
+	@echo '  <string>0.3.0</string>' >> Bitok.app/Contents/Info.plist
+	@echo '  <key>CFBundlePackageType</key>' >> Bitok.app/Contents/Info.plist
+	@echo '  <string>APPL</string>' >> Bitok.app/Contents/Info.plist
+	@echo '  <key>LSMinimumSystemVersion</key>' >> Bitok.app/Contents/Info.plist
+	@echo '  <string>11.0</string>' >> Bitok.app/Contents/Info.plist
+	@echo '  <key>NSHighResolutionCapable</key>' >> Bitok.app/Contents/Info.plist
+	@echo '  <string>True</string>' >> Bitok.app/Contents/Info.plist
+	@echo '</dict>' >> Bitok.app/Contents/Info.plist
+	@echo '</plist>' >> Bitok.app/Contents/Info.plist
+	@echo "Bitok.app created successfully"
+	@echo "You can now run: open Bitok.app"
+	@echo "Or copy to /Applications: cp -r Bitok.app /Applications/"
+
+.PHONY: all daemon gui clean directories install install-gui bundle

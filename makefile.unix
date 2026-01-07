@@ -75,9 +75,10 @@ OBJS_DAEMON = \
     obj/sha.o
 
 # Targets
-all: bitokd
+all: bitokd bitok
 
-# GUI version (requires wxWidgets 3.x)
+# Individual targets
+daemon: bitokd
 gui: bitok
 
 bitok: directories $(OBJS_GUI)
@@ -127,4 +128,4 @@ install: bitokd
 install-gui: bitok
 	install -m 755 bitok /usr/local/bin/
 
-.PHONY: all gui clean directories install install-gui
+.PHONY: all daemon gui clean directories install install-gui
