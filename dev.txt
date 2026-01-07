@@ -165,18 +165,18 @@ wxWidgets (for GUI later)
 
 4.3 Build Output
 
-bitcoinogd (daemon)
+bitokd (daemon)
 
 Static linking preferred
 
 5. DAEMON PHASE (PHASE 1)
 Deliverables
 
-bitcoinogd
+bitokd
 
 Config file support:
 
-bitcoinog.conf
+bitokd.conf
 
 CLI functionality:
 

@@ -34,7 +34,7 @@ HEADERS=headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h
     script.h db.h net.h irc.h main.h rpc.h uibase.h ui.h init.h sha.h
 
 
-all: bitcoin.exe
+all: bitok.exe
 
 
 headers.h.gch: headers.h $(HEADERS)
@@ -59,14 +59,14 @@ OBJS= \
     obj/rpc.o \
     obj/init.o
 
-bitcoin.exe: $(OBJS) obj/ui.o obj/uibase.o obj/sha.o obj/ui_res.o
+bitok.exe: $(OBJS) obj/ui.o obj/uibase.o obj/sha.o obj/ui_res.o
 	g++ $(CFLAGS) -mwindows -Wl,--subsystem,windows -o $@ $(LIBPATHS) $^ $(WXLIBS) $(LIBS)
 
 
 obj/nogui/%.o: %.cpp $(HEADERS)
 	g++ -c $(CFLAGS) -DwxUSE_GUI=0 -o $@ $<
 
-bitcoind.exe: $(OBJS:obj/%=obj/nogui/%) obj/sha.o obj/ui_res.o
+bitokd.exe: $(OBJS:obj/%=obj/nogui/%) obj/sha.o obj/ui_res.o
 	g++ $(CFLAGS) -o $@ $(LIBPATHS) $^ -l wxbase29ud $(LIBS)
 
 

@@ -312,7 +312,7 @@ public:
             *this += n;
         }
         if (fNegative)
-            *this = 0 - *this;
+            *this = -*this;
     }
 
     std::string ToString(int nBase=10) const

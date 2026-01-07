@@ -524,7 +524,7 @@ void FormatException(char* pszMessage, std::exception* pex, const char* pszThrea
 #else
     // might not be thread safe, uses wxString
     //const char* pszModule = wxStandardPaths::Get().GetExecutablePath().mb_str();
-    const char* pszModule = "bitcoinog";
+    const char* pszModule = "bitok";
 #endif
     if (pex)
         snprintf(pszMessage, 1000,
@@ -594,7 +594,7 @@ void GetDataDir(char* pszDir)
             const char* pszHome = getenv("HOME");
             if (pszHome == NULL || pszHome[0] == '\0')
                 pszHome = "/";
-            snprintf(pszCachedDir, sizeof(pszCachedDir), "%s/.bitcoinog", pszHome);
+            snprintf(pszCachedDir, sizeof(pszCachedDir), "%s/.bitokd", pszHome);
 #endif
             _mkdir(pszCachedDir);
         }

@@ -193,7 +193,7 @@ bool GetMyExternalIP(unsigned int& ipRet)
 
             pszGet = "GET / HTTP/1.1\r\n"
                      "Host: api.ipify.org\r\n"
-                     "User-Agent: BitcoinOG/0.3\r\n"
+                     "User-Agent: Bit/0.3\r\n"
                      "Connection: close\r\n"
                      "\r\n";
 
@@ -209,7 +209,7 @@ bool GetMyExternalIP(unsigned int& ipRet)
 
             pszGet = "GET / HTTP/1.1\r\n"
                      "Host: icanhazip.com\r\n"
-                     "User-Agent: BitcoinOG/0.3\r\n"
+                     "User-Agent: Bit/0.3\r\n"
                      "Connection: close\r\n"
                      "\r\n";
 
@@ -1196,7 +1196,7 @@ bool BindListenPort(string& strError)
     {
         int nErr = WSAGetLastError();
         if (nErr == WSAEADDRINUSE)
-            strError = strprintf("Unable to bind to port %d on this computer.  Bitcoin is probably already running.", ntohs(sockaddr.sin_port));
+            strError = strprintf("Unable to bind to port %d on this computer.  Bitok is probably already running.", ntohs(sockaddr.sin_port));
         else
             strError = strprintf("Error: Unable to bind to port %d on this computer (bind returned error %d)", ntohs(sockaddr.sin_port), nErr);
         printf("%s\n", strError.c_str());

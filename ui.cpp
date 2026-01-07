@@ -686,7 +686,7 @@ bool CMainFrame::InsertTransaction(const CWalletTx& wtx, bool fNew, int nIndex)
         }
         else
         {
-            // Received by Bitcoin Address
+            // Received by Bitok Address
             if (!fShowReceived)
                 return false;
             foreach(const CTxOut& txout, wtx.vout)
@@ -773,7 +773,7 @@ bool CMainFrame::InsertTransaction(const CWalletTx& wtx, bool fNew, int nIndex)
                 }
                 else
                 {
-                    // Sent to Bitcoin Address
+                    // Sent to Bitok Address
                     uint160 hash160;
                     if (ExtractHash160(txout.scriptPubKey, hash160))
                         strAddress = Hash160ToAddress(hash160);
@@ -1888,7 +1888,7 @@ void CSendDialog::OnTextAddress(wxCommandEvent& event)
         strFromSave    = m_textCtrlFrom->GetValue();
         strMessageSave = m_textCtrlMessage->GetValue();
         m_textCtrlFrom->SetValue(_("Will appear as \"From: Unknown\""));
-        m_textCtrlMessage->SetValue(_("Can't include a message when sending to a Bitcoin address"));
+        m_textCtrlMessage->SetValue(_("Can't include a message when sending to a Bitok address"));
     }
     else if (fEnable && !fEnabledPrev)
     {
@@ -2382,7 +2382,7 @@ CAddressBookDialog::CAddressBookDialog(wxWindow* parent, const wxString& strInit
 #endif
     m_listCtrlSending->SetFocus();
     m_listCtrlReceiving->InsertColumn(0, _("Label"), wxLIST_FORMAT_LEFT, 200);
-    m_listCtrlReceiving->InsertColumn(1, _("Bitcoin Address"), wxLIST_FORMAT_LEFT, 350);
+    m_listCtrlReceiving->InsertColumn(1, _("Bitok Address"), wxLIST_FORMAT_LEFT, 350);
 #ifndef __WXMSW__
     m_listCtrlReceiving->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOX));
     m_listCtrlReceiving->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOXTEXT));
@@ -2746,7 +2746,7 @@ void CMyTaskBarIcon::UpdateTooltip()
 wxMenu* CMyTaskBarIcon::CreatePopupMenu()
 {
     wxMenu* pmenu = new wxMenu;
-    pmenu->Append(ID_TASKBAR_RESTORE, _("&Open Bitcoin"));
+    pmenu->Append(ID_TASKBAR_RESTORE, _("&Open Bitok"));
     pmenu->Append(ID_TASKBAR_OPTIONS, _("O&ptions..."));
     pmenu->AppendCheckItem(ID_TASKBAR_GENERATE, _("&Generate Coins"))->Check(fGenerateBitcoins);
 #ifndef __WXMAC_OSX__ // Mac has built-in quit menu

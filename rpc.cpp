@@ -67,11 +67,11 @@ Value stop(const Array& params, bool fHelp)
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "stop\n"
-            "Stop BitcoinOG server.");
+            "Stop Bitok server.");
 
     // Shutdown will take long enough that the response should get back
     CreateThread(Shutdown, NULL);
-    return "BitcoinOG server stopping";
+    return "Bitok server stopping";
 }
 
 
@@ -202,7 +202,7 @@ Value getnewaddress(const Array& params, bool fHelp)
     if (fHelp || params.size() > 1)
         throw runtime_error(
             "getnewaddress [label]\n"
-            "Returns a new bitcoin address for receiving payments.  "
+            "Returns a new Bitok address for receiving payments.  "
             "If [label] is specified (recommended), it is added to the address book "
             "so payments received with the address will be labeled.");
 
@@ -275,7 +275,7 @@ Value getaddressesbylabel(const Array& params, bool fHelp)
             const string& strName = item.second;
             if (strName == strLabel)
             {
-                // We're only adding valid bitcoin addresses and not ip addresses
+                // We're only adding valid Bitok addresses and not ip addresses
                 CScript scriptPubKey;
                 if (scriptPubKey.SetBitcoinAddress(strAddress))
                     ret.push_back(strAddress);
@@ -342,11 +342,11 @@ Value getreceivedbyaddress(const Array& params, bool fHelp)
             "getreceivedbyaddress <bitcoinaddress> [minconf=1]\n"
             "Returns the total amount received by <bitcoinaddress> in transactions with at least [minconf] confirmations.");
 
-    // Bitcoin address
+    // Bitok address
     string strAddress = params[0].get_str();
     CScript scriptPubKey;
     if (!scriptPubKey.SetBitcoinAddress(strAddress))
-        throw runtime_error("Invalid bitcoin address");
+        throw runtime_error("Invalid Bitok address");
     if (!IsMine(scriptPubKey))
         return (double)0.0;
 
@@ -394,7 +394,7 @@ Value getreceivedbylabel(const Array& params, bool fHelp)
             const string& strName = item.second;
             if (strName == strLabel)
             {
-                // We're only counting our own valid bitcoin addresses and not ip addresses
+                // We're only counting our own valid Bitok addresses and not ip addresses
                 CScript scriptPubKey;
                 if (scriptPubKey.SetBitcoinAddress(strAddress))
                     if (IsMine(scriptPubKey))
@@ -468,7 +468,7 @@ Value ListReceived(const Array& params, bool fByLabels)
 
             foreach(const CTxOut& txout, wtx.vout)
             {
-                // Only counting our own bitcoin addresses and not ip addresses
+                // Only counting our own Bitok addresses and not ip addresses
                 uint160 hash160 = txout.scriptPubKey.GetBitcoinAddressHash160();
                 if (hash160 == 0 || !mapPubKeys.count(hash160)) // IsMine
                     continue;
@@ -930,7 +930,7 @@ int CommandLineRPC(int argc, char *argv[])
             if (fWindows && fGUI)
                 // Windows GUI apps can't print to command line,
                 // so settle for a message box yuck
-                MyMessageBox(strResult.c_str(), "Bitcoin", wxOK);
+                MyMessageBox(strResult.c_str(), "Bitok", wxOK);
             else
                 fprintf(stdout, "%s\n", strResult.c_str());
         }
@@ -938,7 +938,7 @@ int CommandLineRPC(int argc, char *argv[])
     }
     catch (std::exception& e) {
         if (fWindows && fGUI)
-            MyMessageBox(strprintf("error: %s\n", e.what()).c_str(), "Bitcoin", wxOK);
+            MyMessageBox(strprintf("error: %s\n", e.what()).c_str(), "Bitok", wxOK);
         else
             fprintf(stderr, "error: %s\n", e.what());
     } catch (...) {

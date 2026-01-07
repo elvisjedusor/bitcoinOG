@@ -35,7 +35,7 @@ void Shutdown(void* parg)
         DBFlush(true);
         CreateThread(ExitTimeout, NULL);
         Sleep(50);
-        printf("Bitcoin exiting\n\n");
+        printf("Bitok exiting\n\n");
         fExit = true;
         exit(0);
     }
@@ -95,7 +95,7 @@ string MyGetSpecialFolderPath(int nFolder, bool fCreate)
 
 string StartupShortcutPath()
 {
-    return MyGetSpecialFolderPath(CSIDL_STARTUP, true) + "\\Bitcoin.lnk";
+    return MyGetSpecialFolderPath(CSIDL_STARTUP, true) + "\\Bitok.lnk";
 }
 
 bool GetStartOnSystemStartup()
@@ -293,11 +293,11 @@ bool CMyApp::OnInit2()
 #if wxUSE_GUI
     wxImage::AddHandler(new wxPNGHandler);
 #endif
-// BitcoinOG: Updated app name for data directory
+// Bitok: Updated app name for data directory
 #if defined(__WXMSW__ ) || defined(__WXMAC__)
-    SetAppName("BitcoinOG");
+    SetAppName("Bitok");
 #else
-    SetAppName("bitcoinog");
+    SetAppName("bitokd");
 #endif
 #ifndef __WXMSW__
     umask(077);
@@ -317,7 +317,7 @@ bool CMyApp::OnInit2()
 #endif
 #endif
 
-    // Load locale/<lang>/LC_MESSAGES/bitcoinog.mo language file
+    // Load locale/<lang>/LC_MESSAGES/bitok.mo language file
     m_locale.Init(wxLANGUAGE_DEFAULT, 0);
     m_locale.AddCatalogLookupPathPrefix("locale");
     if (!fWindows)
@@ -326,7 +326,7 @@ bool CMyApp::OnInit2()
         m_locale.AddCatalogLookupPathPrefix("/usr/local/share/locale");
     }
     m_locale.AddCatalog("wxstd"); // wxWidgets standard translations, if any
-    m_locale.AddCatalog("bitcoinog");
+    m_locale.AddCatalog("bitok");
 
     //
     // Parameters
@@ -342,10 +342,10 @@ bool CMyApp::OnInit2()
     {
         wxString strUsage = string() +
           _("Usage:") + "\t\t\t\t\t\t\t\t\t\t\n" +
-            "  bitcoinog [options]       \t" + "\n" +
-            "  bitcoinog [command]       \t" + _("Send command to bitcoinog running with -server or -daemon\n") +
-            "  bitcoinog [command] -?    \t" + _("Get help for a command\n") +
-            "  bitcoinog help            \t" + _("List commands\n") +
+            "  bitok [options]       \t" + "\n" +
+            "  bitok [command]       \t" + _("Send command to bitokd running with -server or -daemon\n") +
+            "  bitok [command] -?    \t" + _("Get help for a command\n") +
+            "  bitok help            \t" + _("List commands\n") +
           _("Options:\n") +
             "  -gen            \t  " + _("Generate coins\n") +
             "  -gen=0          \t  " + _("Don't generate coins\n") +
@@ -362,7 +362,7 @@ bool CMyApp::OnInit2()
         if (fWindows && fGUI)
         {
             // Tabs make the columns line up in the message box
-            wxMessageBox(strUsage, "BitcoinOG", wxOK);
+            wxMessageBox(strUsage, "Bitok", wxOK);
         }
         else
         {
@@ -388,9 +388,9 @@ bool CMyApp::OnInit2()
     if (!fDebug && !pszSetDataDir[0])
         ShrinkDebugFile();
     printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-    printf("BitcoinOG version %d.%d.%d%s, OS version %s\n", VERSION/10000, (VERSION/100)%100, VERSION%100, pszSubVer, ((string)wxGetOsDescription()).c_str());
+    printf("Bitok version %d.%d.%d%s, OS version %s\n", VERSION/10000, (VERSION/100)%100, VERSION%100, pszSubVer, ((string)wxGetOsDescription()).c_str());
     printf("System default language is %d %s\n", m_locale.GetSystemLanguage(), ((string)m_locale.GetSysName()).c_str());
-    printf("Language file %s (%s)\n", (string("locale/") + (string)m_locale.GetCanonicalName() + "/LC_MESSAGES/bitcoinog.mo").c_str(), ((string)m_locale.GetLocale()).c_str());
+    printf("Language file %s (%s)\n", (string("locale/") + (string)m_locale.GetCanonicalName() + "/LC_MESSAGES/bitok.mo").c_str(), ((string)m_locale.GetLocale()).c_str());
 
     if (mapArgs.count("-loadblockindextest"))
     {
@@ -407,7 +407,7 @@ bool CMyApp::OnInit2()
 #ifdef __WXMSW__
     // todo: wxSingleInstanceChecker wasn't working on Linux, never deleted its lock file
     //  maybe should go by whether successfully bind port 8333 instead
-    wxString strMutexName = wxString("bitcoinog_running.") + getenv("HOMEPATH");
+    wxString strMutexName = wxString("bitok_running.") + getenv("HOMEPATH");
     for (int i = 0; i < strMutexName.size(); i++)
         if (!isalnum(strMutexName[i]))
             strMutexName[i] = '.';
@@ -420,7 +420,7 @@ bool CMyApp::OnInit2()
         {
             // TODO: find out how to do this in Linux, or replace with wxWidgets commands
             // Show the previous instance and exit
-            HWND hwndPrev = FindWindowA("wxWindowClassNR", "BitcoinOG");
+            HWND hwndPrev = FindWindowA("wxWindowClassNR", "Bitok");
             if (hwndPrev)
             {
                 if (IsIconic(hwndPrev))
@@ -447,7 +447,7 @@ bool CMyApp::OnInit2()
     string strErrors;
     if (!BindListenPort(strErrors))
     {
-        wxMessageBox(strErrors, "BitcoinOG");
+        wxMessageBox(strErrors, "Bitok");
         return false;
     }
 
@@ -455,7 +455,7 @@ bool CMyApp::OnInit2()
     // Load data files
     //
     if (fDaemon)
-        fprintf(stdout, "BitcoinOG server starting\n");
+        fprintf(stdout, "Bitok server starting\n");
     strErrors = "";
     int64 nStart;
 
@@ -565,7 +565,7 @@ bool CMyApp::OnInit2()
         addrProxy = CAddress(mapArgs["-proxy"]);
         if (!addrProxy.IsValid())
         {
-            wxMessageBox(_("Invalid -proxy address"), "Bitcoin");
+            wxMessageBox(_("Invalid -proxy address"), "Bitok");
             return false;
         }
     }
@@ -593,7 +593,7 @@ bool CMyApp::OnInit2()
     RandAddSeedPerfmon();
 
     if (!CreateThread(StartNode, NULL))
-        wxMessageBox("Error: CreateThread(StartNode) failed", "Bitcoin");
+        wxMessageBox("Error: CreateThread(StartNode) failed", "Bitok");
 
     if (mapArgs.count("-server") || fDaemon)
         CreateThread(ThreadRPCServer, NULL);
@@ -658,7 +658,7 @@ void CMyApp::OnUnhandledException()
 
 void CMyApp::OnFatalException()
 {
-    wxMessageBox(_("Program has crashed and will terminate.  "), "Bitcoin", wxOK | wxICON_ERROR);
+    wxMessageBox(_("Program has crashed and will terminate.  "), "Bitok", wxOK | wxICON_ERROR);
 }
 
 #else
@@ -718,10 +718,10 @@ bool AppInit(int argc, char* argv[])
     {
         string strUsage = string() +
           _("Usage:") + "\n" +
-            "  bitcoinog [options]       \n" +
-            "  bitcoinog [command]       " + _("Send command to bitcoinog running with -server or -daemon\n") +
-            "  bitcoinog [command] -?    " + _("Get help for a command\n") +
-            "  bitcoinog help            " + _("List commands\n") +
+            "  bitokd [options]       \n" +
+            "  bitokd [command]       " + _("Send command to bitokd running with -server or -daemon\n") +
+            "  bitokd [command] -?    " + _("Get help for a command\n") +
+            "  bitokd help            " + _("List commands\n") +
           _("Options:\n") +
             "  -gen              " + _("Generate coins\n") +
             "  -gen=0            " + _("Don't generate coins\n") +
@@ -752,7 +752,7 @@ bool AppInit(int argc, char* argv[])
         ShrinkDebugFile();
 
     printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-    printf("BitcoinOG version %d.%d.%d%s\n", VERSION/10000, (VERSION/100)%100, VERSION%100, pszSubVer);
+    printf("Bitok version %d.%d.%d%s\n", VERSION/10000, (VERSION/100)%100, VERSION%100, pszSubVer);
 
     if (mapArgs.count("-loadblockindextest"))
     {

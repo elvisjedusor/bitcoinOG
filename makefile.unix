@@ -2,7 +2,7 @@
 # Distributed under the MIT/X11 software license, see the accompanying
 # file license.txt or http://www.opensource.org/licenses/mit-license.php.
 #
-# BitcoinOG: Modernized for Ubuntu 24.04 LTS / GCC 11+
+# Bitok: Modernized for Ubuntu 24.04 LTS / GCC 11+
 
 CXX ?= g++
 CXXFLAGS = -std=c++11 -O2 -Wno-invalid-offsetof -Wformat -Wno-deprecated-declarations
@@ -75,16 +75,16 @@ OBJS_DAEMON = \
     obj/sha.o
 
 # Targets
-all: bitcoinogd
+all: bitokd
 
 # GUI version (requires wxWidgets 3.x)
-gui: bitcoinog
+gui: bitok
 
-bitcoinog: directories $(OBJS_GUI)
+bitok: directories $(OBJS_GUI)
 	$(CXX) $(CXXFLAGS) $(DEFS_GUI) -o $@ $(LIBPATHS) $(OBJS_GUI) $(LIBS_GUI)
 
 # Daemon version (no GUI)
-bitcoinogd: directories $(OBJS_DAEMON)
+bitokd: directories $(OBJS_DAEMON)
 	$(CXX) $(CXXFLAGS) $(DEFS_DAEMON) -o $@ $(LIBPATHS) $(OBJS_DAEMON) $(LIBS_DAEMON)
 
 # Create object directories
@@ -116,15 +116,15 @@ obj/json_spirit_writer.o: json/json_spirit_writer.cpp
 	$(CXX) -c $(CXXFLAGS) $(DEFS) $(INCLUDEPATHS) -o $@ $<
 
 clean:
-	-rm -f bitcoinog bitcoinogd
+	-rm -f bitok bitokd
 	-rm -rf obj
 	-rm -f headers.h.gch
 
 # Installation
-install: bitcoinogd
-	install -m 755 bitcoinogd /usr/local/bin/
+install: bitokd
+	install -m 755 bitokd /usr/local/bin/
 
-install-gui: bitcoinog
-	install -m 755 bitcoinog /usr/local/bin/
+install-gui: bitok
+	install -m 755 bitok /usr/local/bin/
 
 .PHONY: all gui clean directories install install-gui

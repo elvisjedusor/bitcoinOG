@@ -2,10 +2,10 @@
 # Distributed under the MIT/X11 software license, see the accompanying
 # file license.txt or http://www.opensource.org/licenses/mit-license.php.
 
-# Mac OS X makefile for bitcoin
+# Mac OS X makefile for Bitok
 # Laszlo Hanyecz (solar@heliacal.net)
 
-DEPSDIR=/Users/macosuser/bitcoin/deps
+DEPSDIR=/Users/macosuser/bit/deps
 
 INCLUDEPATHS= \
  -I"$(DEPSDIR)/include"
@@ -30,7 +30,7 @@ HEADERS=headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h
     script.h db.h net.h irc.h main.h rpc.h uibase.h ui.h init.h sha.h
 
 
-all: bitcoin
+all: bitok
 
 
 obj/%.o: %.cpp $(HEADERS)
@@ -48,15 +48,15 @@ OBJS= \
     obj/main.o \
     obj/rpc.o \
     obj/init.o
-	
-bitcoin: $(OBJS) obj/ui.o obj/uibase.o obj/sha.o
+
+bitok: $(OBJS) obj/ui.o obj/uibase.o obj/sha.o
 	g++ $(CFLAGS) -o $@ $(LIBPATHS) $^ $(WXLIBS) $(LIBS)
 
 
 obj/nogui/%.o: %.cpp $(HEADERS)
 	g++ -c $(CFLAGS) -DwxUSE_GUI=0 -o $@ $<
 
-bitcoind: $(OBJS:obj/%=obj/nogui/%) obj/sha.o
+bitokd: $(OBJS:obj/%=obj/nogui/%) obj/sha.o
 	g++ $(CFLAGS) -o $@ $(LIBPATHS) $^ $(WXLIBS) $(LIBS)
 
 

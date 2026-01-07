@@ -84,7 +84,7 @@ typedef u_int SOCKET;
 #define _vsnprintf(a,b,c,d) vsnprintf(a,b,c,d)
 #define strlwr(psz)         to_lower(psz)
 #define _strlwr(psz)        to_lower(psz)
-#define _mkdir(psz)         filesystem::create_directory(psz)
+#define _mkdir(psz)         boost::filesystem::create_directory(psz)
 #define MAX_PATH            1024
 #define Sleep(n)            usleep((n)*1000)
 #define Beep(n1,n2)         (0)
