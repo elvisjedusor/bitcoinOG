@@ -349,6 +349,7 @@ bool CMyApp::OnInit2()
           _("Options:\n") +
             "  -gen            \t  " + _("Generate coins\n") +
             "  -gen=0          \t  " + _("Don't generate coins\n") +
+            "  -genproclimit=<n>\t  " + _("Limit mining to n processors (-1 = all)\n") +
             "  -min            \t  " + _("Start minimized\n") +
             "  -datadir=<dir>  \t  " + _("Specify data directory\n") +
             "  -proxy=<ip:port>\t  " + _("Connect through socks4 proxy\n") +
@@ -559,6 +560,22 @@ bool CMyApp::OnInit2()
         printf("Solo mining mode enabled - mining without peers\n");
     }
 
+    if (mapArgs.count("-genproclimit"))
+    {
+        int nLimit = atoi(mapArgs["-genproclimit"].c_str());
+        if (nLimit == -1)
+        {
+            fLimitProcessors = false;
+            printf("Mining processor limit disabled - using all processors\n");
+        }
+        else if (nLimit > 0)
+        {
+            fLimitProcessors = true;
+            nLimitProcessors = nLimit;
+            printf("Mining limited to %d processors\n", nLimitProcessors);
+        }
+    }
+
     if (mapArgs.count("-proxy"))
     {
         fUseProxy = true;
@@ -725,6 +742,7 @@ bool AppInit(int argc, char* argv[])
           _("Options:\n") +
             "  -gen              " + _("Generate coins\n") +
             "  -gen=0            " + _("Don't generate coins\n") +
+            "  -genproclimit=<n> " + _("Limit mining to n processors (-1 = all)\n") +
             "  -datadir=<dir>    " + _("Specify data directory\n") +
             "  -proxy=<ip:port>  " + _("Connect through socks4 proxy\n") +
             "  -addnode=<ip>     " + _("Add a node to connect to\n") +
@@ -846,6 +864,22 @@ bool AppInit(int argc, char* argv[])
     {
         fSoloMining = true;
         printf("Solo mining mode enabled - mining without peers\n");
+    }
+
+    if (mapArgs.count("-genproclimit"))
+    {
+        int nLimit = atoi(mapArgs["-genproclimit"].c_str());
+        if (nLimit == -1)
+        {
+            fLimitProcessors = false;
+            printf("Mining processor limit disabled - using all processors\n");
+        }
+        else if (nLimit > 0)
+        {
+            fLimitProcessors = true;
+            nLimitProcessors = nLimit;
+            printf("Mining limited to %d processors\n", nLimitProcessors);
+        }
     }
 
     if (mapArgs.count("-proxy"))

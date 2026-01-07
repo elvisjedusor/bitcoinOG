@@ -2659,11 +2659,11 @@ void CMyTaskBarIcon::Show(bool fShow)
 
         string strTooltip;
         if (nNumConnections == 0)
-            strTooltip = strprintf(_("BitcoinOG - Offline (%d blocks)"), nBestHeight + 1);
+            strTooltip = strprintf(_("Bitok - Offline (%d blocks)"), nBestHeight + 1);
         else if (nHighestPeerHeight > 0 && nBestHeight < nHighestPeerHeight - 5)
-            strTooltip = strprintf(_("BitcoinOG - Syncing %d/%d"), nBestHeight + 1, nHighestPeerHeight);
+            strTooltip = strprintf(_("Bitok - Syncing %d/%d"), nBestHeight + 1, nHighestPeerHeight);
         else
-            strTooltip = strprintf(_("BitcoinOG - %d blocks"), nBestHeight + 1);
+            strTooltip = strprintf(_("Bitok - %d blocks"), nBestHeight + 1);
 
         if (fGenerateBitcoins)
         {

@@ -804,7 +804,7 @@ void ThreadSocketHandler2(void* parg)
 
 
 
-// BitcoinOG: Seed nodes for network bootstrap
+// Bitok: Seed nodes for network bootstrap
 unsigned int pnSeed[] =
 {
     0x215D6F40, // 64.111.93.33:8333

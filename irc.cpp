@@ -227,7 +227,7 @@ void ThreadIRCSeed(void* parg)
         }
         Sleep(500);
 
-        // BitcoinOG: Use our own IRC channel for peer discovery
+        // Bitok: Use our own IRC channel for peer discovery
         Send(hSocket, "JOIN #bitcoinog\r");
         Send(hSocket, "WHO #bitcoinog\r");
 

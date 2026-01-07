@@ -21,8 +21,7 @@ unsigned int nTransactionsUpdated = 0;
 map<COutPoint, CInPoint> mapNextTx;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
-// BitcoinOG: New genesis block hash (will be mined on first run if zero)
-const uint256 hashGenesisBlock("0x00000ac60cbeeac0c7cf58c88495e9db3ea63dae1c06c01eaedcee2ba296dbab");
+const uint256 hashGenesisBlock("0x0000000000000000000000000000000000000000000000000000000000000000");
 CBlockIndex* pindexGenesisBlock = NULL;
 int nBestHeight = -1;
 uint256 hashBestChain = 0;
@@ -796,21 +795,18 @@ uint256 GetOrphanRoot(const CBlock* pblock)
 
 int64 CBlock::GetBlockValue(int64 nFees) const
 {
-    // BitcoinOG: 5 coins per block (1/10th of Bitcoin)
-    int64 nSubsidy = 5 * COIN;
+    int64 nSubsidy = 50 * COIN;
 
-    // BitcoinOG: Halving every 2,100,000 blocks (proportionally scaled)
-    nSubsidy >>= (nBestHeight / 2100000);
+    nSubsidy >>= (nBestHeight / 210000);
 
     return nSubsidy + nFees;
 }
 
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast)
 {
-    // BitcoinOG: 1-minute block target, retarget every 10 blocks
-    const unsigned int nTargetTimespan = 10 * 60; // 10 minutes (10 blocks * 1 minute)
-    const unsigned int nTargetSpacing = 60; // 1 minute per block
-    const unsigned int nInterval = nTargetTimespan / nTargetSpacing; // 10 blocks
+    const unsigned int nTargetTimespan = 7 * 10 * 60; // 70 minutes (7 blocks * 10 minutes)
+    const unsigned int nTargetSpacing = 10 * 60; // ten minutes
+    const unsigned int nInterval = nTargetTimespan / nTargetSpacing; // 7 blocks
 
     // Genesis block
     if (pindexLast == NULL)
@@ -820,7 +816,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast)
     if ((pindexLast->nHeight+1) % nInterval != 0)
         return pindexLast->nBits;
 
-    // Go back by what we want to be 10 blocks worth
+    // Go back by what we want to be 7 blocks worth
     const CBlockIndex* pindexFirst = pindexLast;
     for (int i = 0; pindexFirst && i < nInterval-1; i++)
         pindexFirst = pindexFirst->pprev;
@@ -1548,21 +1544,13 @@ bool LoadBlockIndex(bool fAllowNew)
             return false;
 
 
-        // BitcoinOG Genesis Block:
-        // Same historical timestamp as Bitcoin, but with modified parameters
-        // block.nVersion = 1
-        // block.nTime    = 1231006505 (same as Bitcoin - historical reference)
-        // block.nBits    = 0x1e0ffff0 (easier difficulty for CPU mining)
-        // block.nValue   = 5 COIN (1/10th of Bitcoin)
-
         // Genesis block
         const char* pszTimestamp = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
         CTransaction txNew;
         txNew.vin.resize(1);
         txNew.vout.resize(1);
         txNew.vin[0].scriptSig = CScript() << 486604799 << CBigNum(4) << vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
-        // BitcoinOG: 5 coins per block instead of 50
-        txNew.vout[0].nValue = 5 * COIN;
+        txNew.vout[0].nValue = 50 * COIN;
         CBigNum bnPubKey;
         bnPubKey.SetHex("0x5F1DF16B2B704C8A578D0BBAF74D385CDE12C11EE50455F3C438EF4C3FBCF649B6DE611FEAE06279A60939E028A8D65C10B73071A6F16719274855FEB0FD8A6704");
         txNew.vout[0].scriptPubKey = CScript() << bnPubKey << OP_CHECKSIG;
@@ -1572,30 +1560,29 @@ bool LoadBlockIndex(bool fAllowNew)
         block.hashMerkleRoot = block.BuildMerkleTree();
         block.nVersion = 1;
         block.nTime    = 1231006505;
-        // BitcoinOG: Lower difficulty for CPU mining (matches bnProofOfWorkLimit >> 20)
-        block.nBits    = 0x1e0ffff0;
+        block.nBits    = 0x1d00ffff;
         block.nNonce   = 0;
 
-        // BitcoinOG: Mine the genesis block if needed
+        // Mine the genesis block
         if (true)
         {
-            printf("BitcoinOG: Mining genesis block...\n");
+            printf("Mining genesis block...\n");
             uint256 hashTarget = CBigNum().SetCompact(block.nBits).getuint256();
             while (block.GetHash() > hashTarget)
             {
                 ++block.nNonce;
                 if (block.nNonce == 0)
                 {
-                    printf("BitcoinOG: Nonce wrapped, incrementing time\n");
+                    printf("Nonce wrapped, incrementing time\n");
                     ++block.nTime;
                 }
                 if ((block.nNonce & 0xFFFFF) == 0)
-                    printf("BitcoinOG: nNonce %08X, hash = %s\n", block.nNonce, block.GetHash().ToString().c_str());
+                    printf("nNonce %08X, hash = %s\n", block.nNonce, block.GetHash().ToString().c_str());
             }
-            printf("BitcoinOG: Genesis block mined!\n");
-            printf("BitcoinOG: nNonce = %u\n", block.nNonce);
-            printf("BitcoinOG: Hash = %s\n", block.GetHash().ToString().c_str());
-            printf("BitcoinOG: Merkle = %s\n", block.hashMerkleRoot.ToString().c_str());
+            printf("Genesis block mined!\n");
+            printf("nNonce = %u\n", block.nNonce);
+            printf("Hash = %s\n", block.GetHash().ToString().c_str());
+            printf("Merkle = %s\n", block.hashMerkleRoot.ToString().c_str());
         }
 
         //// debug print
@@ -1605,7 +1592,6 @@ bool LoadBlockIndex(bool fAllowNew)
         txNew.vout[0].scriptPubKey.print();
         block.print();
 
-        // BitcoinOG: Skip hash assertions during genesis mining
         // After mining, update hashGenesisBlock constant with the mined hash
         // assert(block.GetHash() == hashGenesisBlock);
 

@@ -12,7 +12,7 @@ extern int nBestHeight;
 
 
 
-static const unsigned short DEFAULT_PORT = htons(18333); // BitcoinOG P2P port
+static const unsigned short DEFAULT_PORT = htons(18333); // Bitok P2P port
 static const unsigned int PUBLISH_HOPS = 5;
 enum
 {
@@ -51,7 +51,7 @@ bool StopNode();
 // The message start string is designed to be unlikely to occur in normal data.
 // The characters are rarely used upper ascii, not valid as UTF-8, and produce
 // a large 4-byte int at any alignment.
-// BitcoinOG: unique network magic bytes for network isolation
+// Bitok: unique network magic bytes for network isolation
 static const unsigned char pchMessageStart[4] = { 0xb4, 0x0b, 0xc0, 0xde };
 
 class CMessageHeader
