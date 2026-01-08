@@ -3,6 +3,9 @@
 // file license.txt or http://www.opensource.org/licenses/mit-license.php.
 
 #include "headers.h"
+#include "crypto/sha256.h"
+
+extern void InitSHA256();
 
 
 
@@ -302,6 +305,9 @@ bool CMyApp::OnInit2()
 #ifndef __WXMSW__
     umask(077);
 #endif
+
+    InitSHA256();
+
 #ifdef __WXMSW__
 #if wxUSE_UNICODE
     // Hack to set wxConvLibc codepage to UTF-8 on Windows,
@@ -693,6 +699,8 @@ bool AppInit(int argc, char* argv[])
     umask(077);
 #endif
 
+    InitSHA256();
+
     // Check if any argument is an RPC command (not starting with -)
     // RPC commands can appear after options like -datadir
     int rpcArgIndex = -1;
@@ -787,6 +795,36 @@ bool AppInit(int argc, char* argv[])
         return false;
     }
 
+    if (mapArgs.count("-gen"))
+    {
+        if (mapArgs["-gen"].empty())
+            fGenerateBitcoins = true;
+        else
+            fGenerateBitcoins = (atoi(mapArgs["-gen"].c_str()) != 0);
+    }
+
+    if (mapArgs.count("-solo"))
+    {
+        fSoloMining = true;
+        printf("Solo mining mode enabled - mining without peers\n");
+    }
+
+    if (mapArgs.count("-genproclimit"))
+    {
+        int nLimit = atoi(mapArgs["-genproclimit"].c_str());
+        if (nLimit == -1)
+        {
+            fLimitProcessors = false;
+            printf("Mining processor limit disabled - using all processors\n");
+        }
+        else if (nLimit > 0)
+        {
+            fLimitProcessors = true;
+            nLimitProcessors = nLimit;
+            printf("Mining limited to %d processors\n", nLimitProcessors);
+        }
+    }
+
     printf("Loading addresses...\n");
     if (!LoadAddresses())
         fprintf(stderr, "Warning: Error loading addresses\n");
@@ -850,36 +888,6 @@ bool AppInit(int argc, char* argv[])
         if (nFound == 0)
             printf("No blocks matching %s were found\n", strMatch.c_str());
         return false;
-    }
-
-    if (mapArgs.count("-gen"))
-    {
-        if (mapArgs["-gen"].empty())
-            fGenerateBitcoins = true;
-        else
-            fGenerateBitcoins = (atoi(mapArgs["-gen"].c_str()) != 0);
-    }
-
-    if (mapArgs.count("-solo"))
-    {
-        fSoloMining = true;
-        printf("Solo mining mode enabled - mining without peers\n");
-    }
-
-    if (mapArgs.count("-genproclimit"))
-    {
-        int nLimit = atoi(mapArgs["-genproclimit"].c_str());
-        if (nLimit == -1)
-        {
-            fLimitProcessors = false;
-            printf("Mining processor limit disabled - using all processors\n");
-        }
-        else if (nLimit > 0)
-        {
-            fLimitProcessors = true;
-            nLimitProcessors = nLimit;
-            printf("Mining limited to %d processors\n", nLimitProcessors);
-        }
     }
 
     if (mapArgs.count("-proxy"))

@@ -43,11 +43,28 @@ DEFS = -DNOPCH -D_FILE_OFFSET_BITS=64 -DOPENSSL_SUPPRESS_DEPRECATED
 DEFS_GUI = $(DEFS) -DwxUSE_GUI=1
 DEFS_DAEMON = $(DEFS) -DwxUSE_GUI=0
 
+# CPU feature detection and SIMD flags
+HAVE_SSE41 := $(shell grep -q sse4_1 /proc/cpuinfo 2>/dev/null && echo 1)
+HAVE_AVX2 := $(shell grep -q avx2 /proc/cpuinfo 2>/dev/null && echo 1)
+HAVE_SHANI := $(shell grep -q sha_ni /proc/cpuinfo 2>/dev/null && echo 1)
+
+# SIMD compiler flags
+SSE41_FLAGS = -msse4.1
+SHANI_FLAGS = -msse4.1 -msha
+
+# Enable optimized implementations
+CRYPTO_DEFS = -DENABLE_SSE41 -DENABLE_X86_SHANI
+
 # Debug flags (comment out for release)
 # DEBUGFLAGS = -g -D__WXDEBUG__
 
 HEADERS = headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
     script.h bitcoin_db.h db_cxx_compat.h net.h irc.h main.h rpc.h uibase.h ui.h init.h sha.h
+
+# Crypto object files (optimized SHA256)
+OBJS_CRYPTO = \
+    obj/crypto/sha256.o \
+    obj/crypto/sha256_shani.o
 
 # Object files for GUI
 OBJS_GUI = \
@@ -61,7 +78,8 @@ OBJS_GUI = \
     obj/gui/init.o \
     obj/gui/ui.o \
     obj/gui/uibase.o \
-    obj/sha.o
+    obj/sha.o \
+    $(OBJS_CRYPTO)
 
 OBJS_DAEMON = \
     obj/nogui/util.o \
@@ -72,7 +90,8 @@ OBJS_DAEMON = \
     obj/nogui/main.o \
     obj/nogui/rpc.o \
     obj/nogui/init.o \
-    obj/sha.o
+    obj/sha.o \
+    $(OBJS_CRYPTO)
 
 # Targets
 all: bitokd bitok
@@ -93,6 +112,7 @@ directories:
 	@mkdir -p obj
 	@mkdir -p obj/gui
 	@mkdir -p obj/nogui
+	@mkdir -p obj/crypto
 
 # GUI object files - explicitly set wxUSE_GUI=1
 obj/gui/%.o: %.cpp $(HEADERS)
@@ -102,9 +122,17 @@ obj/gui/%.o: %.cpp $(HEADERS)
 obj/nogui/%.o: %.cpp $(HEADERS)
 	$(CXX) -c $(CXXFLAGS) $(DEFS_DAEMON) $(INCLUDEPATHS) -o $@ $<
 
-# SHA optimization
+# SHA optimization (legacy CryptoPP)
 obj/sha.o: sha.cpp sha.h
 	$(CXX) -c $(CXXFLAGS) -O3 $(DEFS) $(INCLUDEPATHS) -o $@ $<
+
+# Optimized crypto - SHA256 base implementation
+obj/crypto/sha256.o: crypto/sha256.cpp crypto/sha256.h crypto/cpuid.h
+	$(CXX) -c $(CXXFLAGS) -O3 $(DEFS) $(CRYPTO_DEFS) $(INCLUDEPATHS) -o $@ $<
+
+# Optimized crypto - SHA-NI hardware acceleration (requires -msha -msse4.1)
+obj/crypto/sha256_shani.o: crypto/sha256_shani.cpp crypto/sha256.h
+	$(CXX) -c $(CXXFLAGS) -O3 $(DEFS) $(CRYPTO_DEFS) $(SHANI_FLAGS) $(INCLUDEPATHS) -o $@ $<
 
 # JSON Spirit (if needed)
 obj/json_spirit_reader.o: json/json_spirit_reader.cpp

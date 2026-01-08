@@ -28,7 +28,7 @@ static const CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
 
 extern CCriticalSection cs_main;
 extern map<uint256, CBlockIndex*> mapBlockIndex;
-extern const uint256 hashGenesisBlock;
+extern uint256 hashGenesisBlock;
 extern CBlockIndex* pindexGenesisBlock;
 extern int nBestHeight;
 extern uint256 hashBestChain;
@@ -77,6 +77,7 @@ string SendMoney(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew, bool fAs
 string SendMoneyToBitcoinAddress(string strAddress, int64 nValue, CWalletTx& wtxNew, bool fAskFee=false);
 void GenerateBitcoins(bool fGenerate);
 void ThreadBitcoinMiner(void* parg);
+void ThreadGenesisMiner(void* parg);
 void BitcoinMiner();
 
 
@@ -967,24 +968,22 @@ public:
 
     bool WriteToDisk(bool fWriteTransactions, unsigned int& nFileRet, unsigned int& nBlockPosRet)
     {
-        // Open history file to append
         CAutoFile fileout = AppendBlockFile(nFileRet);
         if (!fileout)
             return error("CBlock::WriteToDisk() : AppendBlockFile failed");
+
         if (!fWriteTransactions)
             fileout.nType |= SER_BLOCKHEADERONLY;
 
-        // Write index header
         unsigned int nSize = fileout.GetSerializeSize(*this);
         fileout << FLATDATA(pchMessageStart) << nSize;
 
-        // Write block
         nBlockPosRet = ftell(fileout);
         if (nBlockPosRet == -1)
             return error("CBlock::WriteToDisk() : ftell failed");
+
         fileout << *this;
 
-        // Flush stdio buffers and commit to disk before returning
         fflush(fileout);
 #ifdef __WXMSW__
         _commit(_fileno(fileout));
@@ -999,20 +998,22 @@ public:
     {
         SetNull();
 
-        // Open history file to read
         CAutoFile filein = OpenBlockFile(nFile, nBlockPos, "rb");
         if (!filein)
             return error("CBlock::ReadFromDisk() : OpenBlockFile failed");
+
         if (!fReadTransactions)
             filein.nType |= SER_BLOCKHEADERONLY;
 
-        // Read block
         filein >> *this;
 
-        // Check the header
-        if (CBigNum().SetCompact(nBits) > bnProofOfWorkLimit)
+        CBigNum bnTarget;
+        bnTarget.SetCompact(nBits);
+
+        if (bnTarget > bnProofOfWorkLimit)
             return error("CBlock::ReadFromDisk() : nBits errors in block header");
-        if (GetHash() > CBigNum().SetCompact(nBits).getuint256())
+
+        if (GetHash() > bnTarget.getuint256())
             return error("CBlock::ReadFromDisk() : GetHash() errors in block header");
 
         return true;

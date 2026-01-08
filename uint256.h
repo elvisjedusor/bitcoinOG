@@ -293,6 +293,8 @@ public:
 
     std::string GetHex() const
     {
+        // NOTE: This reverses byte order for big-endian display
+        // Bitcoin hashes are stored little-endian but displayed big-endian
         char psz[sizeof(pn)*2 + 1];
         for (int i = 0; i < sizeof(pn); i++)
             sprintf(psz + i*2, "%02x", ((unsigned char*)pn)[sizeof(pn) - i - 1]);

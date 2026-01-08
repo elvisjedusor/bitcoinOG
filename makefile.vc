@@ -28,6 +28,12 @@ LIBS= \
 WXDEFS=/DWIN32 /D__WXMSW__ /D_WINDOWS /DNOPCH
 DEBUGFLAGS=/Zi /Od /D__WXDEBUG__
 CFLAGS=/c /nologo /Ob0 /MDd /EHsc /GR /Zm300 $(DEBUGFLAGS) $(WXDEFS) $(INCLUDEPATHS)
+
+# Crypto optimization defines for MSVC
+CRYPTO_DEFS=/DENABLE_SSE41 /DENABLE_X86_SHANI
+# MSVC uses /arch:AVX2 for AVX2, but SHA-NI needs intrinsics
+SIMD_FLAGS=
+
 HEADERS=headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
     script.h db.h net.h irc.h main.h rpc.h uibase.h ui.h init.h sha.h
 
@@ -61,6 +67,16 @@ obj\uibase.obj: $(HEADERS)
 obj\sha.obj: sha.cpp sha.h
     cl $(CFLAGS) /O2 /Fo$@ %s
 
+# Optimized crypto - SHA256 base implementation
+obj\crypto\sha256.obj: crypto\sha256.cpp crypto\sha256.h crypto\cpuid.h
+    @if not exist obj\crypto mkdir obj\crypto
+    cl $(CFLAGS) /O2 $(CRYPTO_DEFS) /Fo$@ crypto\sha256.cpp
+
+# Optimized crypto - SHA-NI hardware acceleration
+obj\crypto\sha256_shani.obj: crypto\sha256_shani.cpp crypto\sha256.h
+    @if not exist obj\crypto mkdir obj\crypto
+    cl $(CFLAGS) /O2 $(CRYPTO_DEFS) /Fo$@ crypto\sha256_shani.cpp
+
 obj\ui.res: ui.rc  rc/bitcoin.ico rc/check.ico rc/send16.bmp rc/send16mask.bmp rc/send16masknoshadow.bmp rc/send20.bmp rc/send20mask.bmp rc/addressbook16.bmp rc/addressbook16mask.bmp rc/addressbook20.bmp rc/addressbook20mask.bmp
     rc $(INCLUDEPATHS) $(WXDEFS) /Fo$@ %s
 
@@ -74,7 +90,11 @@ OBJS= \
     obj\rpc.obj \
     obj\init.obj
 
-bitok.exe: $(OBJS) obj\ui.obj obj\uibase.obj obj\sha.obj obj\ui.res
+OBJS_CRYPTO= \
+    obj\crypto\sha256.obj \
+    obj\crypto\sha256_shani.obj
+
+bitok.exe: $(OBJS) obj\ui.obj obj\uibase.obj obj\sha.obj $(OBJS_CRYPTO) obj\ui.res
     link /nologo /DEBUG /SUBSYSTEM:WINDOWS /OUT:$@ $(LIBPATHS) $** $(LIBS)
 
 
@@ -97,11 +117,12 @@ obj\nogui\rpc.obj: $(HEADERS)
 
 obj\nogui\init.obj: $(HEADERS)
 
-bitokd.exe: $(OBJS:obj\=obj\nogui\) obj\sha.obj obj\ui.res
+bitokd.exe: $(OBJS:obj\=obj\nogui\) obj\sha.obj $(OBJS_CRYPTO) obj\ui.res
     link /nologo /DEBUG /OUT:$@ $(LIBPATHS) $** $(LIBS)
 
 
 clean:
     -del /Q obj\*
+    -del /Q obj\crypto\*
     -del *.ilk
     -del *.pdb

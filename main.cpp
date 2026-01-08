@@ -4,6 +4,7 @@
 
 #include "headers.h"
 #include "sha.h"
+#include "crypto/sha256.h"
 
 
 
@@ -21,7 +22,9 @@ unsigned int nTransactionsUpdated = 0;
 map<COutPoint, CInPoint> mapNextTx;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
-const uint256 hashGenesisBlock("0x0000000000000000000000000000000000000000000000000000000000000000");
+
+// uint256 hashGenesisBlock("0x0000000000000000000000000000000000000000000000000000000000000000");
+uint256 hashGenesisBlock("0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f");
 CBlockIndex* pindexGenesisBlock = NULL;
 int nBestHeight = -1;
 uint256 hashBestChain = 0;
@@ -1191,17 +1194,17 @@ bool Reorganize(CTxDB& txdb, CBlockIndex* pindexNew)
 
 bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos)
 {
-    // Check for duplicate
     uint256 hash = GetHash();
     if (mapBlockIndex.count(hash))
         return error("AddToBlockIndex() : %s already exists", hash.ToString().substr(0,16).c_str());
 
-    // Construct new block index object
     CBlockIndex* pindexNew = new CBlockIndex(nFile, nBlockPos, *this);
     if (!pindexNew)
         return error("AddToBlockIndex() : new CBlockIndex failed");
+
     map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.insert(make_pair(hash, pindexNew)).first;
     pindexNew->phashBlock = &((*mi).first);
+
     map<uint256, CBlockIndex*>::iterator miPrev = mapBlockIndex.find(hashPrevBlock);
     if (miPrev != mapBlockIndex.end())
     {
@@ -1213,7 +1216,6 @@ bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos)
     txdb.TxnBegin();
     txdb.WriteBlockIndex(CDiskBlockIndex(pindexNew));
 
-    // New best
     if (pindexNew->nHeight > nBestHeight)
     {
         if (pindexGenesisBlock == NULL && hash == hashGenesisBlock)
@@ -1223,7 +1225,6 @@ bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos)
         }
         else if (hashPrevBlock == hashBestChain)
         {
-            // Adding to current best branch
             if (!ConnectBlock(txdb, pindexNew) || !txdb.WriteHashBestChain(hash))
             {
                 txdb.TxnAbort();
@@ -1233,15 +1234,17 @@ bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos)
                 return error("AddToBlockIndex() : ConnectBlock failed");
             }
             txdb.TxnCommit();
-            pindexNew->pprev->pnext = pindexNew;
 
-            // Delete redundant memory transactions
+            if (pindexNew->pprev)
+                pindexNew->pprev->pnext = pindexNew;
+            else
+                pindexGenesisBlock = pindexNew;
+
             foreach(CTransaction& tx, vtx)
                 tx.RemoveFromMemoryPool();
         }
         else
         {
-            // New best branch
             if (!Reorganize(txdb, pindexNew))
             {
                 txdb.TxnAbort();
@@ -1249,7 +1252,6 @@ bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos)
             }
         }
 
-        // New best block
         hashBestChain = hash;
         pindexBest = pindexNew;
         nBestHeight = pindexBest->nHeight;
@@ -1263,7 +1265,6 @@ bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos)
 
     if (pindexNew == pindexBest)
     {
-        // Notify UI to display prev block's coinbase if it was ours
         static uint256 hashPrevBestCoinBase;
         CRITICAL_BLOCK(cs_mapWallet)
             vWalletUpdated.push_back(hashPrevBestCoinBase);
@@ -1525,6 +1526,26 @@ FILE* AppendBlockFile(unsigned int& nFileRet)
     }
 }
 
+//
+// Multi-threaded Genesis Mining
+//
+
+struct GenesisData {
+    CBlock block;
+    uint256 hashTarget;
+    volatile bool fFound;
+    volatile unsigned int nSolution;
+    volatile unsigned int nTimeSolution;
+    volatile int nActiveThreads;
+    CCriticalSection cs;
+};
+
+static GenesisData* pGenesisData = NULL;
+
+void InitSHA256();
+void ThreadGenesisMiner(void* parg);
+
+
 bool LoadBlockIndex(bool fAllowNew)
 {
     //
@@ -1563,43 +1584,81 @@ bool LoadBlockIndex(bool fAllowNew)
         block.nBits    = 0x1d00ffff;
         block.nNonce   = 0;
 
-        // Mine the genesis block
-        if (true)
+        // Mine the genesis block with multi-threading
+        if (hashGenesisBlock == 0)
         {
             printf("Mining genesis block...\n");
-            uint256 hashTarget = CBigNum().SetCompact(block.nBits).getuint256();
-            while (block.GetHash() > hashTarget)
+
+            // Initialize optimized SHA-256
+            InitSHA256();
+
+            // Determine number of threads to use
+#if wxUSE_GUI
+            int nThreads = wxThread::GetCPUCount();
+#else
+            int nThreads = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+            if (nThreads < 1)
+                nThreads = 1;
+            if (fLimitProcessors && nThreads > nLimitProcessors)
+                nThreads = nLimitProcessors;
+
+            printf("Using %d mining threads", nThreads);
+            if (fLimitProcessors)
+                printf(" (-genproclimit=%d)\n", nLimitProcessors);
+            else
+                printf(" (all CPUs)\n");
+
+            // Setup shared genesis data
+            GenesisData genesis;
+            genesis.block = block;
+            genesis.hashTarget = CBigNum().SetCompact(block.nBits).getuint256();
+            genesis.fFound = false;
+            genesis.nSolution = 0;
+            genesis.nTimeSolution = block.nTime;
+            genesis.nActiveThreads = 0;
+            pGenesisData = &genesis;
+
+            // Start mining threads
+            int64 nStartTime = GetTimeMillis();
+            for (int i = 0; i < nThreads; i++)
             {
-                ++block.nNonce;
-                if (block.nNonce == 0)
-                {
-                    printf("Nonce wrapped, incrementing time\n");
-                    ++block.nTime;
-                }
-                if ((block.nNonce & 0xFFFFF) == 0)
-                    printf("nNonce %08X, hash = %s\n", block.nNonce, block.GetHash().ToString().c_str());
+                if (!CreateThread(ThreadGenesisMiner, (void*)(long)i))
+                    printf("Error: CreateThread(ThreadGenesisMiner) failed for thread %d\n", i);
+                Sleep(10);
             }
-            printf("Genesis block mined!\n");
+
+            // Wait for solution
+            while (!genesis.fFound)
+                Sleep(100);
+
+            while (genesis.nActiveThreads > 0)
+                Sleep(100);
+
+            block.nNonce = genesis.nSolution;
+            block.nTime = genesis.nTimeSolution;
+
+            int64 nElapsed = GetTimeMillis() - nStartTime;
+            printf("\nGenesis block mined in %d ms!\n", (int)nElapsed);
             printf("nNonce = %u\n", block.nNonce);
+            printf("nTime = %u\n", block.nTime);
             printf("Hash = %s\n", block.GetHash().ToString().c_str());
             printf("Merkle = %s\n", block.hashMerkleRoot.ToString().c_str());
+
+            pGenesisData = NULL;
         }
 
-        //// debug print
         printf("%s\n", block.GetHash().ToString().c_str());
         printf("%s\n", block.hashMerkleRoot.ToString().c_str());
         printf("%s\n", hashGenesisBlock.ToString().c_str());
         txNew.vout[0].scriptPubKey.print();
         block.print();
 
-        // After mining, update hashGenesisBlock constant with the mined hash
-        // assert(block.GetHash() == hashGenesisBlock);
-
-        // Start new block file
         unsigned int nFile;
         unsigned int nBlockPos;
         if (!block.WriteToDisk(!fClient, nFile, nBlockPos))
             return error("LoadBlockIndex() : writing genesis block to disk failed");
+
         if (!block.AddToBlockIndex(nFile, nBlockPos))
             return error("LoadBlockIndex() : genesis block not accepted");
     }
@@ -2475,12 +2534,17 @@ void GenerateBitcoins(bool fGenerate)
             nProcessors = nLimitProcessors;
         int nAddThreads = nProcessors - vnThreadsRunning[3];
         printf("Starting %d BitcoinMiner threads\n", nAddThreads);
+        if (fLimitProcessors)
+            printf("Thread limit: %d processors\n", nLimitProcessors);
+        else
+            printf("Thread limit: unlimited (using all %d processors)\n", nProcessors);
         for (int i = 0; i < nAddThreads; i++)
         {
             if (!CreateThread(ThreadBitcoinMiner, NULL))
                 printf("Error: CreateThread(ThreadBitcoinMiner) failed\n");
             Sleep(10);
         }
+        printf("Total active mining threads: %d\n", vnThreadsRunning[3]);
     }
 }
 
@@ -2520,37 +2584,170 @@ int FormatHashBlocks(void* pbuffer, unsigned int len)
 
 using CryptoPP::ByteReverse;
 static int detectlittleendian = 1;
+static bool g_sha256_initialized = false;
+
+void InitSHA256()
+{
+    if (!g_sha256_initialized) {
+        std::string impl = SHA256AutoDetect();
+        printf("SHA256 implementation: %s\n", impl.c_str());
+        g_sha256_initialized = true;
+    }
+}
 
 void BlockSHA256(const void* pin, unsigned int nBlocks, void* pout)
 {
-    unsigned int* pinput = (unsigned int*)pin;
-    unsigned int* pstate = (unsigned int*)pout;
+    uint32_t* pstate = (uint32_t*)pout;
+    const unsigned char* pdata = (const unsigned char*)pin;
 
-    CryptoPP::SHA256::InitState(pstate);
+    pstate[0] = 0x6a09e667;
+    pstate[1] = 0xbb67ae85;
+    pstate[2] = 0x3c6ef372;
+    pstate[3] = 0xa54ff53a;
+    pstate[4] = 0x510e527f;
+    pstate[5] = 0x9b05688c;
+    pstate[6] = 0x1f83d9ab;
+    pstate[7] = 0x5be0cd19;
 
-    if (*(char*)&detectlittleendian != 0)
-    {
-        for (int n = 0; n < nBlocks; n++)
-        {
-            unsigned int pbuf[16];
-            for (int i = 0; i < 16; i++)
-                pbuf[i] = ByteReverse(pinput[n * 16 + i]);
-            CryptoPP::SHA256::Transform(pstate, pbuf);
-        }
+    sha256::Transform(pstate, pdata, nBlocks);
+
+    if (*(char*)&detectlittleendian != 0) {
         for (int i = 0; i < 8; i++)
             pstate[i] = ByteReverse(pstate[i]);
     }
-    else
+}
+
+
+void ThreadGenesisMiner(void* parg)
+{
+    int nThreadID = (int)(long)parg;
+
+    if (!pGenesisData)
+        return;
+
+    GenesisData& genesis = *pGenesisData;
+
+    // Increment active thread counter
+    CRITICAL_BLOCK(genesis.cs)
     {
-        for (int n = 0; n < nBlocks; n++)
-            CryptoPP::SHA256::Transform(pstate, pinput + n * 16);
+        genesis.nActiveThreads++;
+    }
+
+    // Setup optimized mining structure
+    struct {
+        struct {
+            int nVersion;
+            uint256 hashPrevBlock;
+            uint256 hashMerkleRoot;
+            unsigned int nTime;
+            unsigned int nBits;
+            unsigned int nNonce;
+        } block_header;
+        unsigned char pchPadding0[64];
+        uint256 hash1;
+        unsigned char pchPadding1[64];
+    } tmp;
+
+    tmp.block_header.nVersion = genesis.block.nVersion;
+    tmp.block_header.hashPrevBlock = genesis.block.hashPrevBlock;
+    tmp.block_header.hashMerkleRoot = genesis.block.hashMerkleRoot;
+    tmp.block_header.nTime = genesis.block.nTime;
+    tmp.block_header.nBits = genesis.block.nBits;
+    tmp.block_header.nNonce = nThreadID;  // Start each thread at different nonce
+
+    unsigned int nBlocks0 = FormatHashBlocks(&tmp.block_header, sizeof(tmp.block_header));
+    unsigned int nBlocks1 = FormatHashBlocks(&tmp.hash1, sizeof(tmp.hash1));
+
+    uint256 hash;
+    int64 nHashCount = 0;
+    int64 nStartTime = GetTimeMillis();
+
+#if wxUSE_GUI
+    int nThreads = wxThread::GetCPUCount();
+#else
+    int nThreads = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+    if (nThreads < 1) nThreads = 1;
+    if (fLimitProcessors && nThreads > nLimitProcessors)
+        nThreads = nLimitProcessors;
+
+    printf("Genesis thread %d started\n", nThreadID);
+
+    while (!genesis.fFound)
+    {
+        // Use optimized BlockSHA256
+        BlockSHA256(&tmp.block_header, nBlocks0, &tmp.hash1);
+        BlockSHA256(&tmp.hash1, nBlocks1, &hash);
+
+        nHashCount++;
+
+        if (hash <= genesis.hashTarget)
+        {
+            CRITICAL_BLOCK(genesis.cs)
+            {
+                if (!genesis.fFound)
+                {
+                    genesis.fFound = true;
+                    genesis.nSolution = tmp.block_header.nNonce;
+                    genesis.nTimeSolution = tmp.block_header.nTime;
+                    printf("\nGenesis solution found by thread %d!\n", nThreadID);
+                    printf("nNonce = %u\n", genesis.nSolution);
+                    printf("Hash = %s\n", hash.ToString().c_str());
+                }
+            }
+            break;
+        }
+
+        // Increment nonce by number of threads (each thread has its own range)
+        tmp.block_header.nNonce += nThreads;
+
+        if (tmp.block_header.nNonce < nThreads)  // Wrapped around
+        {
+            tmp.block_header.nTime++;
+            printf("Thread %d: Nonce wrapped, incrementing time to %u\n", nThreadID, tmp.block_header.nTime);
+        }
+
+        // Progress report every 1M hashes
+        if ((nHashCount & 0xFFFFF) == 0)
+        {
+            int64 nElapsed = GetTimeMillis() - nStartTime;
+            if (nElapsed > 0)
+            {
+                double dHashRate = (1000.0 * nHashCount) / nElapsed;
+                printf("Thread %d: %.0f khash/s, nNonce %08X, hash %s\n",
+                       nThreadID, dHashRate / 1000.0, tmp.block_header.nNonce,
+                       hash.ToString().substr(0, 16).c_str());
+            }
+        }
+    }
+
+    int64 nElapsed = GetTimeMillis() - nStartTime;
+    if (nElapsed > 0)
+    {
+        double dHashRate = (1000.0 * nHashCount) / nElapsed;
+        printf("Thread %d finished: %.0f khash/s total\n", nThreadID, dHashRate / 1000.0);
+    }
+
+    CRITICAL_BLOCK(genesis.cs)
+    {
+        genesis.nActiveThreads--;
     }
 }
 
 
 void BitcoinMiner()
 {
-    printf("BitcoinMiner started\n");
+    if (vnThreadsRunning[3] == 1)
+    {
+        printf("\n");
+        printf("========================================\n");
+        printf("   BITCOIN MINER STARTED\n");
+        printf("========================================\n");
+        printf("Threads: %d\n", fLimitProcessors ? nLimitProcessors : vnThreadsRunning[3]);
+        printf("Height:  %d\n", nBestHeight);
+        printf("========================================\n");
+        printf("\n");
+    }
 
     CKey key;
     key.MakeNewKey();
@@ -2638,7 +2835,6 @@ void BitcoinMiner()
         }
         pblock->nBits = nBits;
         pblock->vtx[0].vout[0].nValue = pblock->GetBlockValue(nFees);
-        printf("Running BitcoinMiner with %d transactions in block\n", pblock->vtx.size());
 
 
         //
@@ -2689,12 +2885,18 @@ void BitcoinMiner()
                 pblock->nNonce = tmp.block.nNonce;
                 assert(hash == pblock->GetHash());
 
-                    //// debug print
-                    printf("BitcoinMiner:\n");
-                    printf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex().c_str(), hashTarget.GetHex().c_str());
-                    pblock->print();
-                    printf("%s ", DateTimeStrFormat("%x %H:%M", GetTime()).c_str());
-                    printf("generated %s\n", FormatMoney(pblock->vtx[0].vout[0].nValue).c_str());
+                    printf("\n");
+                    printf("========================================\n");
+                    printf(">>> BLOCK MINED! <<<\n");
+                    printf("========================================\n");
+                    printf("Height:  %d\n", nBestHeight + 1);
+                    printf("Hash:    %s\n", hash.GetHex().c_str());
+                    printf("Target:  %s\n", hashTarget.GetHex().c_str());
+                    printf("Reward:  %s\n", FormatMoney(pblock->vtx[0].vout[0].nValue).c_str());
+                    printf("Txs:     %d\n", pblock->vtx.size());
+                    printf("Time:    %s\n", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
+                    printf("========================================\n");
+                    printf("\n");
 
                 SetThreadPriority(THREAD_PRIORITY_NORMAL);
                 CRITICAL_BLOCK(cs_main)
@@ -2740,11 +2942,11 @@ void BitcoinMiner()
                     string strStatus = strprintf(" %.0f khash/s", dHashesPerSec/1000.0);
                     UIThreadCall(bind(CalledSetStatusBar, strStatus, 0));
                     static int64 nLogTime;
-                    if (GetTime() - nLogTime > 30 * 60)
+                    if (GetTime() - nLogTime > 30)
                     {
                         nLogTime = GetTime();
-                        printf("%s ", DateTimeStrFormat("%x %H:%M", GetTime()).c_str());
-                        printf("hashmeter %3d CPUs %6.0f khash/s\n", vnThreadsRunning[3], dHashesPerSec/1000.0);
+                        printf("[MINING] Hashrate: %.0f khash/s | Threads: %d | Height: %d | Txs: %d\n",
+                               dHashesPerSec/1000.0, vnThreadsRunning[3], nBestHeight, pblock->vtx.size());
                     }
                 }
 
@@ -2754,7 +2956,10 @@ void BitcoinMiner()
                 if (!fGenerateBitcoins)
                     return;
                 if (fLimitProcessors && vnThreadsRunning[3] > nLimitProcessors)
+                {
+                    printf("Stopping thread: exceeded limit (%d > %d)\n", vnThreadsRunning[3], nLimitProcessors);
                     return;
+                }
                 if (vNodes.empty())
                     break;
                 if (tmp.block.nNonce == 0)
