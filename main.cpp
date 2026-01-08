@@ -807,9 +807,9 @@ int64 CBlock::GetBlockValue(int64 nFees) const
 
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast)
 {
-    const unsigned int nTargetTimespan = 7 * 10 * 60; // 70 minutes (7 blocks * 10 minutes)
+    const unsigned int nTargetTimespan = 14 * 24 * 60 * 60; // two weeks
     const unsigned int nTargetSpacing = 10 * 60; // ten minutes
-    const unsigned int nInterval = nTargetTimespan / nTargetSpacing; // 7 blocks
+    const unsigned int nInterval = nTargetTimespan / nTargetSpacing; // 2016 blocks
 
     // Genesis block
     if (pindexLast == NULL)

@@ -228,8 +228,8 @@ void ThreadIRCSeed(void* parg)
         Sleep(500);
 
         // Bitok: Use our own IRC channel for peer discovery
-        Send(hSocket, "JOIN #bitcoinog\r");
-        Send(hSocket, "WHO #bitcoinog\r");
+        Send(hSocket, "JOIN #findsatoshi\r");
+        Send(hSocket, "WHO #findsatoshi\r");
 
         int64 nStart = GetTime();
         string strLine;
