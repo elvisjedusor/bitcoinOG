@@ -13,7 +13,7 @@ extern void InitSHA256();
 
 void ExitTimeout(void* parg)
 {
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
     Sleep(5000);
     ExitProcess(0);
 #endif
@@ -62,8 +62,8 @@ void Shutdown(void* parg)
 // Startup folder
 //
 
-#ifdef __WXMSW__
-typedef WINSHELLAPI BOOL (WINAPI *PSHGETSPECIALFOLDERPATHA)(HWND hwndOwner, LPSTR lpszPath, int nFolder, BOOL fCreate);
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+typedef BOOL (WINAPI *PSHGETSPECIALFOLDERPATHA)(HWND hwndOwner, LPSTR lpszPath, int nFolder, BOOL fCreate);
 
 string MyGetSpecialFolderPath(int nFolder, bool fCreate)
 {
@@ -104,53 +104,20 @@ string StartupShortcutPath()
 
 bool GetStartOnSystemStartup()
 {
+#if wxUSE_GUI
     return wxFileExists(StartupShortcutPath());
+#else
+    return false;
+#endif
 }
 
 void SetStartOnSystemStartup(bool fAutoStart)
 {
-    // If the shortcut exists already, remove it for updating
     remove(StartupShortcutPath().c_str());
-
     if (fAutoStart)
     {
-        CoInitialize(NULL);
-
-        // Get a pointer to the IShellLink interface.
-        IShellLink* psl = NULL;
-        HRESULT hres = CoCreateInstance(CLSID_ShellLink, NULL,
-                                CLSCTX_INPROC_SERVER, IID_IShellLink,
-                                reinterpret_cast<void**>(&psl));
-
-        if (SUCCEEDED(hres))
-        {
-            // Get the current executable path
-            TCHAR pszExePath[MAX_PATH];
-            GetModuleFileName(NULL, pszExePath, sizeof(pszExePath));
-
-            // Set the path to the shortcut target
-            psl->SetPath(pszExePath);
-            PathRemoveFileSpec(pszExePath);
-            psl->SetWorkingDirectory(pszExePath);
-            psl->SetShowCmd(SW_SHOWMINNOACTIVE);
-
-            // Query IShellLink for the IPersistFile interface for
-            // saving the shortcut in persistent storage.
-            IPersistFile* ppf = NULL;
-            hres = psl->QueryInterface(IID_IPersistFile,
-                                       reinterpret_cast<void**>(&ppf));
-            if (SUCCEEDED(hres))
-            {
-                WCHAR pwsz[MAX_PATH];
-                // Ensure that the string is ANSI.
-                MultiByteToWideChar(CP_ACP, 0, StartupShortcutPath().c_str(), -1, pwsz, MAX_PATH);
-                // Save the link by calling IPersistFile::Save.
-                hres = ppf->Save(pwsz, TRUE);
-                ppf->Release();
-            }
-            psl->Release();
-        }
-        CoUninitialize();
+        printf("Note: Auto-start shortcut creation not available in this build.\n");
+        printf("To start Bitok on login, manually create a shortcut in your Startup folder.\n");
     }
 }
 #else
@@ -218,7 +185,7 @@ bool CMyApp::Initialize(int& argc, wxChar** argv)
         for (int i = 1; i < argc; i++)
         {
             wxString str = argv[i];
-            #ifdef __WXMSW__
+            #if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
             if (str.size() >= 1 && str[0] == '/')
                 str[0] = '-';
             str = str.MakeLower();
@@ -303,14 +270,14 @@ bool CMyApp::OnInit2()
 #else
     SetAppName("bitokd");
 #endif
-#ifndef __WXMSW__
+#if !defined(_WIN32) && !defined(__MINGW32__) && !defined(__WXMSW__)
     umask(077);
 #endif
 
     InitSHA256();
     yespower_init_dispatch();
 
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
 #if wxUSE_UNICODE
     // Hack to set wxConvLibc codepage to UTF-8 on Windows,
     // may break if wxMBConv_win32 implementation in strconv.cpp changes.
@@ -492,6 +459,10 @@ bool CMyApp::OnInit2()
     {
 #if wxUSE_GUI
         int nProcessors = wxThread::GetCPUCount();
+#elif defined(_WIN32) || defined(__MINGW32__)
+        SYSTEM_INFO sysinfo;
+        GetSystemInfo(&sysinfo);
+        int nProcessors = sysinfo.dwNumberOfProcessors;
 #else
         int nProcessors = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
@@ -697,7 +668,7 @@ bool AppInit(int argc, char* argv[])
 #if _MSC_VER >= 1400
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
-#ifndef __WXMSW__
+#if !defined(_WIN32) && !defined(__MINGW32__) && !defined(__WXMSW__)
     umask(077);
 #endif
 
@@ -851,6 +822,10 @@ bool AppInit(int argc, char* argv[])
     {
 #if wxUSE_GUI
         int nProcessors = wxThread::GetCPUCount();
+#elif defined(_WIN32) || defined(__MINGW32__)
+        SYSTEM_INFO sysinfo;
+        GetSystemInfo(&sysinfo);
+        int nProcessors = sysinfo.dwNumberOfProcessors;
 #else
         int nProcessors = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
@@ -915,6 +890,7 @@ bool AppInit(int argc, char* argv[])
             fprintf(stderr, "Warning: -paytxfee is set very high\n");
     }
 
+#if !defined(_WIN32) && !defined(__MINGW32__)
     if (fDaemon && !fDebug)
     {
         pid_t pid = fork();
@@ -928,6 +904,7 @@ bool AppInit(int argc, char* argv[])
 
         setsid();
     }
+#endif
 
     if (!CheckDiskSpace())
         return false;

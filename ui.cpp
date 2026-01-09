@@ -7,6 +7,8 @@
 #include <crtdbg.h>
 #endif
 
+int g_isPainting = 0;
+
 #if wxUSE_GUI
 
 #if wxCHECK_VERSION(3, 0, 0)

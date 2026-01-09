@@ -992,7 +992,7 @@ public:
         fileout << *this;
 
         fflush(fileout);
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
         _commit(_fileno(fileout));
 #else
         fsync(fileno(fileout));

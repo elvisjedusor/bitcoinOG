@@ -9,6 +9,8 @@ build/
 *.o
 *.a
 *.so
+release/
+.vscode
 
 # IDE
 .vscode/

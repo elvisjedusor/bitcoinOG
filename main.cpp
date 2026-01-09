@@ -1595,6 +1595,10 @@ bool LoadBlockIndex(bool fAllowNew)
             // Determine number of threads to use
 #if wxUSE_GUI
             int nThreads = wxThread::GetCPUCount();
+#elif defined(_WIN32) || defined(__MINGW32__)
+            SYSTEM_INFO sysinfo;
+            GetSystemInfo(&sysinfo);
+            int nThreads = sysinfo.dwNumberOfProcessors;
 #else
             int nThreads = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
@@ -2525,6 +2529,10 @@ void GenerateBitcoins(bool fGenerate)
     {
 #if wxUSE_GUI
         int nProcessors = wxThread::GetCPUCount();
+#elif defined(_WIN32) || defined(__MINGW32__)
+        SYSTEM_INFO sysinfo;
+        GetSystemInfo(&sysinfo);
+        int nProcessors = sysinfo.dwNumberOfProcessors;
 #else
         int nProcessors = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
@@ -2622,7 +2630,7 @@ void BlockSHA256(const void* pin, unsigned int nBlocks, void* pout)
 
 void ThreadGenesisMiner(void* parg)
 {
-    int nThreadID = (int)(long)parg;
+    int nThreadID = (int)(intptr_t)parg;
 
     if (!pGenesisData)
         return;
@@ -2666,6 +2674,10 @@ void ThreadGenesisMiner(void* parg)
 
 #if wxUSE_GUI
     int nThreads = wxThread::GetCPUCount();
+#elif defined(_WIN32) || defined(__MINGW32__)
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&sysinfo);
+    int nThreads = sysinfo.dwNumberOfProcessors;
 #else
     int nThreads = sysconf(_SC_NPROCESSORS_ONLN);
 #endif

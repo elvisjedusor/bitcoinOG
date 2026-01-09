@@ -517,7 +517,7 @@ bool CWalletDB::LoadWallet()
     int nFileVersion = 0;
 
     // Modify defaults
-#ifndef __WXMSW__
+#if !defined(_WIN32) && !defined(__MINGW32__) && !defined(__WXMSW__)
     // Tray icon sometimes disappears on 9.10 karmic koala 64-bit, leaving no way to access the program
     fMinimizeToTray = false;
     fMinimizeOnClose = false;

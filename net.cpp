@@ -450,7 +450,7 @@ CNode* ConnectNode(CAddress addrConnect, int64 nTimeout)
         printf("connected %s\n", addrConnect.ToStringLog().c_str());
 
         // Set to nonblocking
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
         u_long nOne = 1;
         if (ioctlsocket(hSocket, FIONBIO, &nOne) == SOCKET_ERROR)
             printf("ConnectSocket() : ioctlsocket nonblocking setting failed, error %d\n", WSAGetLastError());
@@ -1141,7 +1141,7 @@ bool BindListenPort(string& strError)
     strError = "";
     int nOne = 1;
 
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
     // Initialize Windows Sockets
     WSADATA wsadata;
     int ret = WSAStartup(MAKEWORD(2,2), &wsadata);
@@ -1167,13 +1167,13 @@ bool BindListenPort(string& strError)
     setsockopt(hListenSocket, SOL_SOCKET, SO_NOSIGPIPE, (void*)&nOne, sizeof(int));
 #endif
 
-#ifndef __WXMSW__
+#if !defined(_WIN32) && !defined(__MINGW32__) && !defined(__WXMSW__)
     // Allow binding if the port is still in TIME_WAIT state after
     // the program was closed and restarted.  Not an issue on windows.
     setsockopt(hListenSocket, SOL_SOCKET, SO_REUSEADDR, (void*)&nOne, sizeof(int));
 #endif
 
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
     // Set to nonblocking, incoming connections will also inherit this
     if (ioctlsocket(hListenSocket, FIONBIO, (u_long*)&nOne) == SOCKET_ERROR)
 #else
@@ -1220,7 +1220,7 @@ void StartNode(void* parg)
     if (pnodeLocalHost == NULL)
         pnodeLocalHost = new CNode(INVALID_SOCKET, CAddress("127.0.0.1", nLocalServices));
 
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
     // Get local host ip
     char pszHostName[1000] = "";
     if (gethostname(pszHostName, sizeof(pszHostName)) != SOCKET_ERROR)
@@ -1309,7 +1309,7 @@ void StartNode(void* parg)
         printf("Error: CreateThread(ThreadIRCSeed) failed\n");
 
     // Send and receive from sockets, accept connections
-    pthread_t hThreadSocketHandler = CreateThread(ThreadSocketHandler, NULL, true);
+    thread_handle_t hThreadSocketHandler = CreateThread(ThreadSocketHandler, NULL, true);
 
     // Initiate outbound connections
     if (!CreateThread(ThreadOpenConnections, NULL))
@@ -1362,7 +1362,7 @@ void StartNode(void* parg)
             // but we always only use TRY_CRITICAL_SECTION on them.
             printf("*** Restarting ThreadSocketHandler ***\n");
             TerminateThread(hThreadSocketHandler, 0);
-            #ifdef __WXMSW__
+            #if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
             CloseHandle(hThreadSocketHandler);
             #endif
             vnThreadsRunning[0] = 0;
@@ -1414,7 +1414,7 @@ public:
             if (closesocket(hListenSocket) == SOCKET_ERROR)
                 printf("closesocket(hListenSocket) failed with error %d\n", WSAGetLastError());
 
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
         // Shutdown Windows Sockets
         WSACleanup();
 #endif

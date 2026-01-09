@@ -4,6 +4,9 @@
 
 #include "headers.h"
 #undef printf
+#ifdef _WIN32
+#define BOOST_ASIO_DISABLE_IOCP
+#endif
 #include <boost/asio.hpp>
 #include "json/json_spirit_reader_template.h"
 #include "json/json_spirit_writer_template.h"

@@ -4,6 +4,8 @@
 
 This is Satoshi's original code from 2010, adapted to run on modern Windows with CPU-friendly proof-of-work.
 
+**Main target: GUI Wallet (`bitok.exe`)** - Windows users expect double-click simplicity!
+
 For mining details, see [BITOKPOW.md](BITOKPOW.md).
 For philosophy, see [MANIFESTO.md](MANIFESTO.md).
 
@@ -12,6 +14,8 @@ For philosophy, see [MANIFESTO.md](MANIFESTO.md).
 Modern build instructions for Windows 10+ (64-bit)
 
 ## Two Build Methods
+
+**Focus**: Building the GUI wallet. Command-line daemon is optional.
 
 ### Method 1: Cross-Compile from Ubuntu (Recommended)
 
@@ -43,9 +47,13 @@ Alternatively, use the provided makefile with manual dependency setup (see below
 #### Build from Ubuntu
 
 ```bash
-make -f makefile.mingw bitokd.exe  # Daemon only
-make -f makefile.mingw bitok.exe   # GUI wallet
-make -f makefile.mingw all         # Both
+# GUI wallet (what Windows users want!)
+make -f makefile.mingw gui MARCH=x86-64-v3
+x86_64-w64-mingw32-strip bitok.exe
+
+# Or use the automated script
+cd release
+./build-windows-static.sh
 ```
 
 #### Test on Ubuntu (using Wine)
@@ -80,9 +88,11 @@ pacman -S --needed \
 #### Build on Windows
 
 ```bash
-make -f makefile.mingw bitokd.exe  # Daemon only
-make -f makefile.mingw bitok.exe   # GUI wallet
-make -f makefile.mingw all         # Both
+# GUI wallet (main target)
+make -f makefile.mingw gui MARCH=x86-64-v3
+
+# Optional: daemon
+make -f makefile.mingw daemon MARCH=x86-64-v3
 ```
 
 ---

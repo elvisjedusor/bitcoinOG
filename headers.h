@@ -19,6 +19,15 @@
 #define WIN32_LEAN_AND_MEAN 1
 #define __STDC_LIMIT_MACROS // to enable UINT64_MAX from stdint.h
 
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+#ifndef CSIDL_APPDATA
+#define CSIDL_APPDATA 0x001a
+#endif
+#ifndef CSIDL_STARTUP
+#define CSIDL_STARTUP 0x0007
+#endif
+#endif
+
 #if wxUSE_GUI
 #include <wx/wx.h>
 #include <wx/stdpaths.h>
@@ -78,15 +87,26 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 
-#ifdef __WXMSW__
-#include <windows.h>
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
 #include <winsock2.h>
+#include <windows.h>
 #include <mswsock.h>
-#include <shlobj.h>
-#include <shlwapi.h>
 #include <io.h>
+#include <direct.h>
 #include <process.h>
 #include <malloc.h>
+#ifndef _mkdir
+#define _mkdir(dir) mkdir(dir)
+#endif
+inline BOOL PathRemoveFileSpecA(LPSTR pszPath) {
+    if (!pszPath) return FALSE;
+    char* lastSlash = strrchr(pszPath, '\\');
+    char* lastFwdSlash = strrchr(pszPath, '/');
+    if (lastFwdSlash > lastSlash) lastSlash = lastFwdSlash;
+    if (lastSlash) { *lastSlash = '\0'; return TRUE; }
+    return FALSE;
+}
+#define PathRemoveFileSpec PathRemoveFileSpecA
 #else
 #include <sys/time.h>
 #include <sys/resource.h>

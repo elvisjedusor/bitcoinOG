@@ -64,7 +64,7 @@ public:
 #endif
         CRYPTO_set_locking_callback(locking_callback);
 
-#ifdef __WXMSW__
+#if (defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)) && wxUSE_GUI
         // Seed random number generator with screen scrape and other hardware sources
         RAND_screen();
 #endif
@@ -115,7 +115,7 @@ void RandAddSeedPerfmon()
         return;
     nLastPerfmon = GetTime();
 
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
     // Don't need this on Linux, OpenSSL automatically uses /dev/urandom
     // Seed with the entire set of perfmon data
     unsigned char pdata[250000];
@@ -195,7 +195,7 @@ inline int OutputDebugStringF(const char* pszFormat, ...)
         }
     }
 
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
     if (fPrintToDebugger)
     {
         // accumulate a line at a time
@@ -460,7 +460,7 @@ void ParseParameters(int argc, char* argv[])
             pszValue = strchr(psz, '=');
             *pszValue++ = '\0';
         }
-        #ifdef __WXMSW__
+        #if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
         _strlwr(psz);
         if (psz[0] == '/')
             psz[0] = '-';
@@ -517,7 +517,7 @@ const char* wxGetTranslation(const char* pszEnglish)
 
 void FormatException(char* pszMessage, std::exception* pex, const char* pszThread)
 {
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
     char pszModule[MAX_PATH];
     pszModule[0] = '\0';
     GetModuleFileNameA(NULL, pszModule, sizeof(pszModule));

@@ -54,7 +54,7 @@ inline T& REF(const T& val)
     return (T&)val;
 }
 
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
 static const bool fWindows = true;
 #define MSG_NOSIGNAL        0
 #define MSG_DONTWAIT        0
@@ -94,7 +94,7 @@ inline int myclosesocket(SOCKET& hSocket)
 {
     if (hSocket == INVALID_SOCKET)
         return WSAENOTSOCK;
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
     int ret = closesocket(hSocket);
 #else
     int ret = close(hSocket);
@@ -163,7 +163,7 @@ void AddTimeData(unsigned int ip, int64 nTime);
 // Wrapper to automatically initialize critical sections
 class CCriticalSection
 {
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
 protected:
     CRITICAL_SECTION cs;
 public:
@@ -327,7 +327,7 @@ inline void PrintHex(vector<unsigned char> vch, const char* pszFormat="%s", bool
 inline int64 PerformanceCounter()
 {
     int64 nCounter = 0;
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
     QueryPerformanceCounter((LARGE_INTEGER*)&nCounter);
 #else
     timeval t;
@@ -341,6 +341,13 @@ inline int64 GetTimeMillis()
 {
 #if wxUSE_GUI
     return wxGetLocalTimeMillis().GetValue();
+#elif defined(_WIN32) || defined(__MINGW32__)
+    FILETIME ft;
+    GetSystemTimeAsFileTime(&ft);
+    ULARGE_INTEGER uli;
+    uli.LowPart = ft.dwLowDateTime;
+    uli.HighPart = ft.dwHighDateTime;
+    return (int64)(uli.QuadPart / 10000 - 11644473600000LL);
 #else
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -377,7 +384,7 @@ void skipspaces(T& it)
 
 inline void heapchk()
 {
-#ifdef __WXMSW__
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
     /// for debugging
     //if (_heapchk() != _HEAPOK)
     //    DebugBreak();
@@ -488,10 +495,14 @@ inline uint160 Hash160(const vector<unsigned char>& vch)
 
 // Note: It turns out we might have been able to use boost::thread
 // by using TerminateThread(boost::thread.native_handle(), 0);
-#ifdef __WXMSW__
-typedef HANDLE pthread_t;
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+// Modern MinGW-w64 has pthread support, so don't redefine pthread_t
+// Use a custom type for Windows thread handles
+typedef HANDLE bitok_thread_t;
+// Define cross-platform thread handle type
+typedef bitok_thread_t thread_handle_t;
 
-inline pthread_t CreateThread(void(*pfn)(void*), void* parg, bool fWantHandle=false)
+inline bitok_thread_t CreateThread(void(*pfn)(void*), void* parg, bool fWantHandle=false)
 {
     DWORD nUnused = 0;
     HANDLE hthread =
@@ -505,12 +516,12 @@ inline pthread_t CreateThread(void(*pfn)(void*), void* parg, bool fWantHandle=fa
     if (hthread == NULL)
     {
         printf("Error: CreateThread() returned %d\n", GetLastError());
-        return (pthread_t)0;
+        return (bitok_thread_t)0;
     }
     if (!fWantHandle)
     {
         CloseHandle(hthread);
-        return (pthread_t)-1;
+        return (bitok_thread_t)-1;
     }
     return hthread;
 }
@@ -520,6 +531,9 @@ inline void SetThreadPriority(int nPriority)
     SetThreadPriority(GetCurrentThread(), nPriority);
 }
 #else
+// Unix/Linux: use pthread_t
+typedef pthread_t thread_handle_t;
+
 inline pthread_t CreateThread(void(*pfn)(void*), void* parg, bool fWantHandle=false)
 {
     pthread_t hthread = 0;

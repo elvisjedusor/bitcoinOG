@@ -12,8 +12,16 @@ CROSS_PREFIX ?= x86_64-w64-mingw32-
 UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
 ifneq (,$(findstring Linux,$(UNAME_S)))
     IS_CROSS_COMPILE = 1
-    CXX = $(CROSS_PREFIX)g++
-    STRIP = $(CROSS_PREFIX)strip
+    # Prefer MXE compiler if available (has correct threading model)
+    MXE_CXX := $(shell which x86_64-w64-mingw32.static-g++ 2>/dev/null)
+    ifneq ($(MXE_CXX),)
+        CXX = x86_64-w64-mingw32.static-g++
+        STRIP = x86_64-w64-mingw32.static-strip
+        CROSS_PREFIX = x86_64-w64-mingw32.static-
+    else
+        CXX = $(CROSS_PREFIX)g++
+        STRIP = $(CROSS_PREFIX)strip
+    endif
 else
     # Native Windows build (MSYS2)
     CXX = g++
@@ -34,11 +42,14 @@ LDFLAGS = -static -static-libgcc -static-libstdc++
 
 # wxWidgets configuration (for GUI builds)
 ifdef IS_CROSS_COMPILE
-    # Cross-compile: manual paths (adjust as needed)
-    WXCONFIG ?= /usr/bin/wx-config
-    # If you have cross-compiled wxWidgets, set path here
-    WXCXXFLAGS = -DwxUSE_GUI=1
-    WXLIBS =
+    # Cross-compile: detect MXE wx-config
+    WXCONFIG ?= $(shell which x86_64-w64-mingw32.static-wx-config 2>/dev/null || which $(CROSS_PREFIX)wx-config 2>/dev/null || echo "")
+    ifeq ($(WXCONFIG),)
+        $(error wxWidgets not found! Make sure MXE is in your PATH: export PATH=$$HOME/mxe/usr/bin:$$PATH)
+    else
+        WXCXXFLAGS := $(shell $(WXCONFIG) --cxxflags 2>/dev/null)
+        WXLIBS := $(shell $(WXCONFIG) --libs std 2>/dev/null)
+    endif
 else
     # Native Windows (MSYS2)
     WXCONFIG ?= wx-config
@@ -55,6 +66,13 @@ ifndef IS_CROSS_COMPILE
     INCLUDEPATHS += \
         -I"/mingw64/include" \
         -I"/mingw64/include/wx-3.2"
+else
+    # Cross-compile: add MXE include paths
+    MXE_TARGET ?= x86_64-w64-mingw32.static
+    MXE_PREFIX ?= $(shell dirname $$(dirname $$(which $(CROSS_PREFIX)g++ 2>/dev/null || echo /usr/bin/false) 2>/dev/null) 2>/dev/null)
+    ifneq ($(MXE_PREFIX),)
+        INCLUDEPATHS += -I"$(MXE_PREFIX)/$(MXE_TARGET)/include"
+    endif
 endif
 
 # Library paths
@@ -62,15 +80,23 @@ LIBPATHS =
 
 ifndef IS_CROSS_COMPILE
     LIBPATHS += -L"/mingw64/lib"
+else
+    # Cross-compile: add MXE library paths
+    ifneq ($(MXE_PREFIX),)
+        LIBPATHS += -L"$(MXE_PREFIX)/$(MXE_TARGET)/lib"
+    endif
 endif
 
 # Libraries for daemon (no GUI)
+# Note: MXE boost libraries use full target suffix
 LIBS_DAEMON = \
-    -lboost_system-mt \
-    -lboost_filesystem-mt \
+    -lboost_system-mt-x64 \
+    -lboost_filesystem-mt-x64 \
     -ldb_cxx \
     -lssl \
     -lcrypto \
+    -lcrypt32 \
+    -lz \
     -lws2_32 \
     -lshlwapi \
     -lmswsock \
@@ -81,11 +107,13 @@ LIBS_DAEMON = \
 
 # Libraries for GUI
 LIBS_GUI = $(WXLIBS) \
-    -lboost_system-mt \
-    -lboost_filesystem-mt \
+    -lboost_system-mt-x64 \
+    -lboost_filesystem-mt-x64 \
     -ldb_cxx \
     -lssl \
     -lcrypto \
+    -lcrypt32 \
+    -lz \
     -lkernel32 \
     -luser32 \
     -lgdi32 \
@@ -131,6 +159,7 @@ OBJS_CRYPTO = \
 # Yespower object files (ASIC-resistant PoW)
 OBJS_YESPOWER = \
     obj/yespower/yespower-opt.o \
+    obj/yespower/yespower_dispatch.o \
     obj/yespower/sha256-yp.o
 
 # Object files for GUI
@@ -165,7 +194,12 @@ OBJS_DAEMON = \
 
 # Resource file (Windows icon, etc.)
 ifdef IS_CROSS_COMPILE
-    WINDRES = $(CROSS_PREFIX)windres
+    MXE_WINDRES := $(shell which x86_64-w64-mingw32.static-windres 2>/dev/null)
+    ifneq ($(MXE_WINDRES),)
+        WINDRES = x86_64-w64-mingw32.static-windres
+    else
+        WINDRES = $(CROSS_PREFIX)windres
+    endif
 else
     WINDRES = windres
 endif
@@ -220,11 +254,16 @@ obj/crypto/sha256_shani.o: crypto/sha256_shani.cpp crypto/sha256.h
 # Windows resource file (icon, version info, etc.)
 obj/ui_res.o: ui.rc
 	@echo "Compiling Windows resources..."
-	-$(WINDRES) $(DEFS_GUI) $(INCLUDEPATHS) -i $< -o $@
+	-$(WINDRES) $(DEFS_GUI) $(WXCXXFLAGS) $(INCLUDEPATHS) -i $< -o $@
 
 # Yespower - ASIC-resistant proof-of-work algorithm
 ifdef IS_CROSS_COMPILE
-    CC = $(CROSS_PREFIX)gcc
+    MXE_CC := $(shell which x86_64-w64-mingw32.static-gcc 2>/dev/null)
+    ifneq ($(MXE_CC),)
+        CC = x86_64-w64-mingw32.static-gcc
+    else
+        CC = $(CROSS_PREFIX)gcc
+    endif
 else
     CC = gcc
 endif
@@ -238,6 +277,9 @@ obj/yespower/yespower-opt.o: yespower-opt.c yespower.h yespower-platform.c sha25
 	$(CC) -c $(YESPOWER_FLAGS) $(DEFS) $(INCLUDEPATHS) -o $@ $<
 
 obj/yespower/sha256-yp.o: sha256.c sha256.h
+	$(CC) -c $(YESPOWER_FLAGS) $(DEFS) $(INCLUDEPATHS) -o $@ $<
+
+obj/yespower/yespower_dispatch.o: yespower_dispatch.c yespower_dispatch.h
 	$(CC) -c $(YESPOWER_FLAGS) $(DEFS) $(INCLUDEPATHS) -o $@ $<
 
 # Clean
