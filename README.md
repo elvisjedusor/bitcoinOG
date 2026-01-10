@@ -1,22 +1,57 @@
-# Bitok - Bitcoin v0.3.0 Time Machine
+# Bitok 0.3.0 (Mainnet)
 
-Pure Satoshi code. Adapted to modern systems. CPU mining restored.
+Bitok 0.3.0 is a restored release of Bitcoin v0.3.0 (2010), the last version of Bitcoin personally released and configured by Satoshi Nakamoto. The software preserves the original behavior and operating model of early Bitcoin, while adapting mining to keep GPU and ASIC hardware inefficient.
 
-Copyright (c) 2009-2010 Satoshi Nakamoto
+BITOK is not BTC.
+It does not connect to, interact with, or fork the Bitcoin mainnet.
 
-Copyright (c) 2026 Tom Elvis Jedusor
+## Overview
 
-Distributed under the MIT/X11 software license
+Bitok preserves the original Bitcoin v0.3.0 codebase with the following intentional modifications:
+
+- Modern build compatibility on contemporary toolchains
+
+- CPU-friendly proof-of-work via Yespower (memory-hard algorithm replacing SHA-256)
+
+- Independent mainnet with hardcoded parameters (genesis, peers, IRC bootstrapping)
+
+- Command-line configuration only (no config file)
+
+## Mainnet is live
+
+The genesis block and network parameters are hardcoded in source (main.cpp).
+
+### Genesis Block
+
+```
+Hash:       0x0290400ea28d3fe79d102ca6b7cd11cee5eba9f17f2046c303d92f65d6ed2617
+Timestamp:  "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks"
+Unix Time:  1231006505 (January 3, 2009)
+nVersion:   1
+nBits:      0x1effffff
+nNonce:     37137
+Coinbase:   50 BITOK
+```
+
+### Network Parameters
+
+```
+P2P Port:       18333
+RPC Port:       8332
+Message Start:  0xb40bc0de
+```
+
+### IRC Bootstrap
+
+Peer discovery uses IRC bootstrap, exactly as early Bitcoin releases did. Parameters are hardcoded and may change availability over time; alternative peers must be discovered organically.
+
+### Security Warning
+
+**If you lose your wallet.dat file or forget your passphrase, your coins are permanently lost.** There is no recovery mechanism, no password reset, no customer support. You are responsible for your keys. You are responsible for your backups. You are responsible for your mistakes.
+
+The main protocol logic, networking, transaction validation, and wallet behavior remain consistent with Bitcoin v0.3.0. This repository reflects the exact mainnet now running. No further consensus changes should be expected post-release.
 
 ---
-
-## Documentation Table of Contents
-
-### Quick Start
-- [What Is This](#what-is-this)
-- [Building](#building)
-- [Running](#running)
-- [Mining](#mining)
 
 ### Technical Documentation
 - [RPC API Reference](RPC_API.md) - complete JSON-RPC API for exchanges, mining pools, block explorers
@@ -34,41 +69,13 @@ Distributed under the MIT/X11 software license
 
 ---
 
-## What Is This
-
-Bitok is Bitcoin version 0.3.0, the last version Satoshi Nakamoto personally released, resurrected to run on modern operating systems.
-
-This is not a fork in the political sense. This is not BTC with changes. This is Satoshi's original code from 2010, with only three categories of modifications:
-
-1. System compatibility - updated to compile and run with modern toolchains
-2. GPU-resistant mining - SHA-256 replaced with Yespower to implement Satoshi's vision of CPU-only mining
-3. Separate network - new genesis block to avoid interfering with BTC
-
-Everything else is untouched. Same consensus rules. Same economics. Same peer-to-peer behavior. Same philosophy.
-
-## Satoshi on GPU Mining
-
-On December 12, 2010, Satoshi Nakamoto wrote on BitcoinTalk:
-
-> We should have a gentleman's agreement to postpone the GPU arms race as long as we can for the good of the network. It's much easer to get new users up to speed if they don't have to worry about GPU drivers and compatibility. It's nice how anyone with just a CPU can compete fairly equally right now.
-
-In private correspondence with early Bitcoin developer Laszlo Hanyecz, Satoshi explained why GPU mining was a problem:
-
-> GPUs are much less evenly distributed, so the generated coins only go towards rewarding 20% of the people for joining the network instead of 100%. I don't mean to sound like a socialist, I don't care if wealth is concentrated, but for now, we get more growth by giving that money to 100% of the people than giving it to 20%.
-
-He knew what was coming:
-
-> It's inevitable that GPU compute clusters will eventually hog all the generated coins, but I don't want to hasten that day.
-
-Bitcoin ignored this. Bitok enforces it.
-
 ## What Changed From Bitcoin v0.3.0
 
 ### Code Changes Summary
 
 | Category | Changes | Purpose |
 |----------|---------|---------|
-| System Compatibility | OpenSSL 3.x, Berkeley DB 5.3 C API, Boost 1.74+, GCC 11+, wxWidgets 3.2 | compile on modern Ubuntu 24.04 |
+| System Compatibility | OpenSSL 3.x, Berkeley DB (modern compatible version), Boost 1.74+, GCC 11+, wxWidgets 3.2 | compile on modern Ubuntu 24.04 |
 | Proof-of-Work | SHA-256 → Yespower 1.0 (N=2048, r=32) | CPU-friendly, GPU/ASIC-resistant |
 | Network | new genesis block | separate network from BTC |
 
@@ -155,13 +162,11 @@ Short version:
 
 Bitcoin was meant to be peer-to-peer electronic cash. Mining was meant to be accessible to everyone. The protocol was meant to be simple and unchanging. Privacy was meant to be natural, not bolted on. There were no leaders, no roadmaps, no foundations.
 
-Bitcoin v0.3.0 embodied these principles. Modern Bitcoin abandoned them.
-
-Bitok restores them.
+Bitcoin v0.3.0 embodied these principles. Bitok preserves that design unchanged.
 
 ## What This Is Not
 
-This is not BTC. Different network, different genesis, different mining algorithm.
+This is not BTC. It is Different network, different genesis, different mining algorithm.
 
 This is not a proposal. No one needs to agree. Run it or don't.
 
@@ -169,15 +174,15 @@ This is not a political fork. No debate, no governance, no ideology injection.
 
 This is not trying to be Bitcoin. Bitcoin already exists and has made its choices.
 
-This is not promising anything. No roadmap, no adoption guarantees, no price targets.
 
-This is software that runs. If you run it, you are the network. If you don't, you aren't.
+**This is software that runs. If you run it, you are the network. If you don't, you aren't.**
+
 
 ## Security Notice
 
-This is code from 2010, adapted for modern systems.
+This is code from 2010, adapted for modern systems. The chain is subject to legacy consensus design; modern defenses such as BIP protocols and script upgrades are absent.
 
-The same security model as Bitcoin v0.3.0. Modern cryptography (OpenSSL 3.x). GPU-resistant mining (Yespower). No modern "features" (good). No peer review since 2010 (expected). No guarantees (as intended).
+The same security model as Bitcoin v0.3.0. Modern cryptography (OpenSSL 3.x). GPU-resistant mining (Yespower). No modern "features" (good). No guarantees (as intended).
 
 You are responsible for your keys. You are responsible for your node. You are responsible for your mistakes.
 
@@ -202,7 +207,7 @@ MIT/X11 License - See [license.txt](license.txt)
 ## Authors
 
 Satoshi Nakamoto - original Bitcoin v0.3.0 (2009-2010)
-Tom Elvis Jedusor - system compatibility updates and Yespower integration (2016)
+Tom Elvis Jedusor - system compatibility updates and Yespower integration (present)
 
 ## Links
 
