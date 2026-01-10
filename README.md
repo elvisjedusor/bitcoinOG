@@ -33,14 +33,43 @@ nBits:      0x1effffff
 nNonce:     37137
 Coinbase:   50 BITOK
 ```
+// The genesis block retains the original Bitcoin timestamp (January 3, 2009) as a tribute to Satoshi's creation. This has no practical impact on the network since difficulty adjustment is based on block count, not calendar time. The historical timestamp only affects the first retarget calculation.
 
 ### Network Parameters
 
-```
-P2P Port:       18333
-RPC Port:       8332
-Message Start:  0xb40bc0de
-```
+#### Blockchain Constants
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| **PoW Algorithm** | Yespower 1.0 | ASIC-resistant, CPU-optimized (N=2048, r=32) pers="BitokPoW" |
+| **Block Time** | 10 minutes | Target time between blocks (600 seconds) |
+| **Block Reward** | 50 BITOK | Initial coinbase reward |
+| **Halving Interval** | 210,000 blocks | Reward halves approximately every 4 years |
+| **Max Supply** | 21,000,000 BITOK | Hard cap on total coins |
+| **Smallest Unit** | 0.00000001 BITOK | 1 satoshi = 10^-8 BITOK |
+| **Max Block Size** | 1 MB | Maximum block payload (1,000,000 bytes) |
+| **Coinbase Maturity** | 100 blocks | Confirmations before mining reward spendable |
+| **Difficulty Adjustment** | 2016 blocks | Retarget interval (~2 weeks) |
+| **Difficulty Window** | 14 days | Target timespan (1,209,600 seconds) |
+| **Difficulty Clamp** | 4x | Max adjustment per retarget (0.25x to 4x) |
+| **Initial Difficulty** | `0x1effffff` | bnProofOfWorkLimit = ~uint256(0) >> 17 |
+
+#### Network Ports
+
+| Parameter | Value |
+|-----------|-------|
+| **P2P Port** | 18333 |
+| **RPC Port** | 8332 |
+| **Message Start** | 0xb40bc0de |
+
+#### Fee Structure
+
+| Fee Type | Amount | Description |
+|----------|--------|-------------|
+| **Base Fee Rate** | 0.01 BITOK/KB | Per transaction, based on tx size (rounded up) |
+| **Free Tier 1** | 0 BITOK | Tx < 3 KB when block < 200 KB |
+| **Free Tier 2** | 0 BITOK | Tx < 60 KB when block < 80 KB |
+| **Dust Penalty** | 0.01 BITOK minimum | If any output < 0.01 BITOK |
 
 ### IRC Bootstrap
 
