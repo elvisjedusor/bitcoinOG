@@ -101,6 +101,229 @@ Value getblocknumber(const Array& params, bool fHelp)
 }
 
 
+Value getblockhash(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "getblockhash <index>\n"
+            "Returns hash of block in best-block-chain at <index>.");
+
+    int nHeight = params[0].get_int();
+    if (nHeight < 0 || nHeight > nBestHeight)
+        throw runtime_error("Block number out of range.");
+
+    CBlockIndex* pblockindex = pindexBest;
+    while (pblockindex->nHeight > nHeight)
+        pblockindex = pblockindex->pprev;
+
+    return pblockindex->GetBlockHash().ToString();
+}
+
+
+Value getblock(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "getblock <hash>\n"
+            "Returns information about the block with the given hash.");
+
+    string strHash = params[0].get_str();
+    uint256 hash;
+    hash.SetHex(strHash);
+
+    if (mapBlockIndex.count(hash) == 0)
+        throw runtime_error("Block not found");
+
+    CBlockIndex* pblockindex = mapBlockIndex[hash];
+    CBlock block;
+    block.ReadFromDisk(pblockindex, true);
+
+    Object result;
+    result.push_back(Pair("hash", block.GetHash().ToString()));
+    result.push_back(Pair("version", block.nVersion));
+    result.push_back(Pair("previousblockhash", block.hashPrevBlock.ToString()));
+    result.push_back(Pair("merkleroot", block.hashMerkleRoot.ToString()));
+    result.push_back(Pair("time", (boost::int64_t)block.nTime));
+    result.push_back(Pair("bits", (boost::int64_t)block.nBits));
+    result.push_back(Pair("nonce", (boost::int64_t)block.nNonce));
+    result.push_back(Pair("height", pblockindex->nHeight));
+
+    Array txhashes;
+    foreach(const CTransaction& tx, block.vtx)
+        txhashes.push_back(tx.GetHash().ToString());
+    result.push_back(Pair("tx", txhashes));
+
+    if (pblockindex->pnext)
+        result.push_back(Pair("nextblockhash", pblockindex->pnext->GetBlockHash().ToString()));
+
+    return result;
+}
+
+
+Value gettransaction(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "gettransaction <txid>\n"
+            "Get detailed information about <txid>");
+
+    string strTxid = params[0].get_str();
+    uint256 hash;
+    hash.SetHex(strTxid);
+
+    Object result;
+
+    CRITICAL_BLOCK(cs_mapWallet)
+    {
+        if (mapWallet.count(hash))
+        {
+            const CWalletTx& wtx = mapWallet[hash];
+
+            result.push_back(Pair("txid", hash.ToString()));
+            result.push_back(Pair("version", wtx.nVersion));
+            result.push_back(Pair("time", (boost::int64_t)wtx.nTimeReceived));
+
+            int nDepth = wtx.GetDepthInMainChain();
+            result.push_back(Pair("confirmations", nDepth));
+
+            if (wtx.hashBlock != 0)
+                result.push_back(Pair("blockhash", wtx.hashBlock.ToString()));
+
+            int64 nCredit = wtx.GetCredit(true);
+            int64 nDebit = wtx.GetDebit();
+            int64 nNet = nCredit - nDebit;
+
+            result.push_back(Pair("amount", (double)nNet / (double)COIN));
+
+            if (nDebit > 0)
+                result.push_back(Pair("fee", (double)(nDebit - wtx.GetValueOut()) / (double)COIN));
+
+            Array details;
+            if (nDebit > 0)
+            {
+                for (int i = 0; i < wtx.vout.size(); i++)
+                {
+                    const CTxOut& txout = wtx.vout[i];
+                    if (txout.IsMine())
+                        continue;
+
+                    Object entry;
+                    entry.push_back(Pair("category", "send"));
+
+                    uint160 hash160;
+                    if (ExtractHash160(txout.scriptPubKey, hash160))
+                        entry.push_back(Pair("address", Hash160ToAddress(hash160)));
+
+                    entry.push_back(Pair("amount", (double)(-txout.nValue) / (double)COIN));
+                    details.push_back(entry);
+                }
+            }
+
+            if (nCredit > 0)
+            {
+                for (int i = 0; i < wtx.vout.size(); i++)
+                {
+                    const CTxOut& txout = wtx.vout[i];
+                    if (!txout.IsMine())
+                        continue;
+
+                    Object entry;
+                    entry.push_back(Pair("category", wtx.IsCoinBase() ? "generate" : "receive"));
+
+                    uint160 hash160;
+                    if (ExtractHash160(txout.scriptPubKey, hash160))
+                        entry.push_back(Pair("address", Hash160ToAddress(hash160)));
+
+                    entry.push_back(Pair("amount", (double)txout.nValue / (double)COIN));
+                    details.push_back(entry);
+                }
+            }
+
+            result.push_back(Pair("details", details));
+
+            return result;
+        }
+    }
+
+    CTxDB txdb("r");
+    CTransaction tx;
+    if (txdb.ReadDiskTx(hash, tx))
+    {
+        result.push_back(Pair("txid", hash.ToString()));
+        result.push_back(Pair("version", tx.nVersion));
+
+        Array vin;
+        foreach(const CTxIn& txin, tx.vin)
+        {
+            Object entry;
+            if (txin.prevout.IsNull())
+            {
+                entry.push_back(Pair("coinbase", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
+            }
+            else
+            {
+                entry.push_back(Pair("txid", txin.prevout.hash.ToString()));
+                entry.push_back(Pair("vout", (int)txin.prevout.n));
+            }
+            vin.push_back(entry);
+        }
+        result.push_back(Pair("vin", vin));
+
+        Array vout;
+        for (int i = 0; i < tx.vout.size(); i++)
+        {
+            const CTxOut& txout = tx.vout[i];
+            Object entry;
+            entry.push_back(Pair("value", (double)txout.nValue / (double)COIN));
+            entry.push_back(Pair("n", i));
+
+            uint160 hash160;
+            if (ExtractHash160(txout.scriptPubKey, hash160))
+                entry.push_back(Pair("address", Hash160ToAddress(hash160)));
+
+            vout.push_back(entry);
+        }
+        result.push_back(Pair("vout", vout));
+
+        return result;
+    }
+
+    throw runtime_error("Transaction not found");
+}
+
+
+Value validateaddress(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "validateaddress <bitcoinaddress>\n"
+            "Return information about <bitcoinaddress>.");
+
+    string strAddress = params[0].get_str();
+
+    Object result;
+    result.push_back(Pair("address", strAddress));
+
+    uint160 hash160;
+    bool isValid = AddressToHash160(strAddress, hash160);
+    result.push_back(Pair("isvalid", isValid));
+
+    if (isValid)
+    {
+        bool isMine = mapPubKeys.count(hash160) > 0;
+        result.push_back(Pair("ismine", isMine));
+
+        CRITICAL_BLOCK(cs_mapAddressBook)
+        {
+            if (mapAddressBook.count(strAddress))
+                result.push_back(Pair("label", mapAddressBook[strAddress]));
+        }
+    }
+
+    return result;
+}
+
+
 Value getconnectioncount(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
@@ -314,7 +537,7 @@ Value sendtoaddress(const Array& params, bool fHelp)
     string strError = SendMoneyToBitcoinAddress(strAddress, nAmount, wtx);
     if (strError != "")
         throw runtime_error(strError);
-    return "sent";
+    return wtx.GetHash().ToString();
 }
 
 
@@ -322,19 +545,122 @@ Value listtransactions(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 2)
         throw runtime_error(
-            "listtransactions [count=10] [includegenerated=false]\n"
-            "Returns up to [count] most recent transactions.");
+            "listtransactions [count=10] [includegenerated=true]\n"
+            "Returns up to [count] most recent transactions.\n"
+            "Returns array of objects with: txid, category, amount, confirmations, time, address");
 
     int64 nCount = 10;
     if (params.size() > 0)
         nCount = params[0].get_int64();
-    bool fGenerated = false;
+    bool fIncludeGenerated = true;
     if (params.size() > 1)
-        fGenerated = params[1].get_bool();
+        fIncludeGenerated = params[1].get_bool();
+
+    vector<pair<int64, uint256> > vSorted;
+    CRITICAL_BLOCK(cs_mapWallet)
+    {
+        for (map<uint256, CWalletTx>::iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
+        {
+            const CWalletTx& wtx = (*it).second;
+            vSorted.push_back(make_pair(wtx.nTimeReceived, wtx.GetHash()));
+        }
+    }
+    sort(vSorted.rbegin(), vSorted.rend());
 
     Array ret;
-    //// not finished
-    ret.push_back("not implemented yet");
+    CRITICAL_BLOCK(cs_mapWallet)
+    {
+        for (vector<pair<int64, uint256> >::iterator it = vSorted.begin(); it != vSorted.end() && (int64)ret.size() < nCount; ++it)
+        {
+            map<uint256, CWalletTx>::iterator mi = mapWallet.find((*it).second);
+            if (mi == mapWallet.end())
+                continue;
+            const CWalletTx& wtx = (*mi).second;
+
+            bool fGenerated = wtx.IsCoinBase();
+            if (fGenerated && !fIncludeGenerated)
+                continue;
+
+            int nDepth = wtx.GetDepthInMainChain();
+            int64 nTime = wtx.nTimeReceived;
+            string strTxid = wtx.GetHash().ToString();
+
+            if (fGenerated)
+            {
+                if (nDepth < COINBASE_MATURITY)
+                    continue;
+                int64 nCredit = wtx.GetCredit(true);
+                Object entry;
+                entry.push_back(Pair("txid", strTxid));
+                entry.push_back(Pair("category", "generate"));
+                entry.push_back(Pair("amount", (double)nCredit / (double)COIN));
+                entry.push_back(Pair("confirmations", nDepth));
+                entry.push_back(Pair("time", (boost::int64_t)nTime));
+                ret.push_back(entry);
+            }
+            else
+            {
+                int64 nDebit = wtx.GetDebit();
+                int64 nCredit = wtx.GetCredit(true);
+
+                if (nDebit > 0)
+                {
+                    int64 nValueOut = wtx.GetValueOut();
+                    int64 nFee = nDebit - nValueOut;
+
+                    for (int i = 0; i < wtx.vout.size(); i++)
+                    {
+                        const CTxOut& txout = wtx.vout[i];
+                        if (txout.IsMine())
+                            continue;
+
+                        string strAddress;
+                        uint160 hash160;
+                        if (ExtractHash160(txout.scriptPubKey, hash160))
+                            strAddress = Hash160ToAddress(hash160);
+
+                        Object entry;
+                        entry.push_back(Pair("txid", strTxid));
+                        entry.push_back(Pair("category", "send"));
+                        entry.push_back(Pair("amount", (double)(-txout.nValue) / (double)COIN));
+                        entry.push_back(Pair("fee", (double)(-nFee) / (double)COIN));
+                        if (!strAddress.empty())
+                            entry.push_back(Pair("address", strAddress));
+                        entry.push_back(Pair("confirmations", nDepth));
+                        entry.push_back(Pair("time", (boost::int64_t)nTime));
+                        ret.push_back(entry);
+                        nFee = 0;
+                    }
+                }
+
+                if (nCredit > 0)
+                {
+                    for (int i = 0; i < wtx.vout.size(); i++)
+                    {
+                        const CTxOut& txout = wtx.vout[i];
+                        if (!txout.IsMine())
+                            continue;
+
+                        string strAddress;
+                        uint160 hash160;
+                        if (ExtractHash160(txout.scriptPubKey, hash160))
+                            strAddress = Hash160ToAddress(hash160);
+
+                        Object entry;
+                        entry.push_back(Pair("txid", strTxid));
+                        entry.push_back(Pair("category", "receive"));
+                        entry.push_back(Pair("amount", (double)txout.nValue / (double)COIN));
+                        if (!strAddress.empty())
+                            entry.push_back(Pair("address", strAddress));
+                        entry.push_back(Pair("confirmations", nDepth));
+                        entry.push_back(Pair("time", (boost::int64_t)nTime));
+                        ret.push_back(entry);
+                    }
+                }
+            }
+        }
+    }
+
     return ret;
 }
 
@@ -443,6 +769,222 @@ struct tallyitem
         nConf = INT_MAX;
     }
 };
+
+Value getbestblockhash(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getbestblockhash\n"
+            "Returns the hash of the best (tip) block in the longest block chain.");
+
+    return hashBestChain.ToString();
+}
+
+
+Value getrawtransaction(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 2)
+        throw runtime_error(
+            "getrawtransaction <txid> [verbose=0]\n"
+            "If verbose=0, returns a string that is serialized, hex-encoded data for <txid>.\n"
+            "If verbose is non-zero, returns an Object with information about <txid>.");
+
+    string strTxid = params[0].get_str();
+    uint256 hash;
+    hash.SetHex(strTxid);
+
+    bool fVerbose = false;
+    if (params.size() > 1)
+        fVerbose = (params[1].get_int() != 0);
+
+    CTransaction tx;
+    uint256 hashBlock = 0;
+    CTxIndex txindex;
+
+    CRITICAL_BLOCK(cs_mapTransactions)
+    {
+        if (mapTransactions.count(hash))
+        {
+            tx = mapTransactions[hash];
+        }
+    }
+
+    if (tx.IsNull())
+    {
+        CTxDB txdb("r");
+        if (!txdb.ReadDiskTx(hash, tx, txindex))
+            throw runtime_error("No information available about transaction");
+    }
+
+    CDataStream ssTx;
+    ssTx << tx;
+    string strHex = HexStr(ssTx.begin(), ssTx.end());
+
+    if (!fVerbose)
+        return strHex;
+
+    Object result;
+    result.push_back(Pair("hex", strHex));
+    result.push_back(Pair("txid", hash.ToString()));
+    result.push_back(Pair("version", tx.nVersion));
+    result.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
+
+    Array vin;
+    foreach(const CTxIn& txin, tx.vin)
+    {
+        Object entry;
+        if (txin.prevout.IsNull())
+        {
+            entry.push_back(Pair("coinbase", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
+        }
+        else
+        {
+            entry.push_back(Pair("txid", txin.prevout.hash.ToString()));
+            entry.push_back(Pair("vout", (int)txin.prevout.n));
+            entry.push_back(Pair("scriptSig", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
+        }
+        entry.push_back(Pair("sequence", (boost::int64_t)txin.nSequence));
+        vin.push_back(entry);
+    }
+    result.push_back(Pair("vin", vin));
+
+    Array vout;
+    for (int i = 0; i < tx.vout.size(); i++)
+    {
+        const CTxOut& txout = tx.vout[i];
+        Object entry;
+        entry.push_back(Pair("value", (double)txout.nValue / (double)COIN));
+        entry.push_back(Pair("n", i));
+        entry.push_back(Pair("scriptPubKey", HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end())));
+
+        uint160 hash160;
+        if (ExtractHash160(txout.scriptPubKey, hash160))
+            entry.push_back(Pair("address", Hash160ToAddress(hash160)));
+
+        vout.push_back(entry);
+    }
+    result.push_back(Pair("vout", vout));
+
+    return result;
+}
+
+
+Value getrawmempool(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getrawmempool\n"
+            "Returns all transaction ids in memory pool.");
+
+    Array ret;
+    CRITICAL_BLOCK(cs_mapTransactions)
+    {
+        for (map<uint256, CTransaction>::iterator mi = mapTransactions.begin();
+             mi != mapTransactions.end(); ++mi)
+        {
+            ret.push_back((*mi).first.ToString());
+        }
+    }
+    return ret;
+}
+
+
+extern CCriticalSection cs_mapTransactions;
+
+Value listunspent(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 2)
+        throw runtime_error(
+            "listunspent [minconf=1] [maxconf=9999999]\n"
+            "Returns array of unspent transaction outputs\n"
+            "with between minconf and maxconf (inclusive) confirmations.");
+
+    int nMinDepth = 1;
+    if (params.size() > 0)
+        nMinDepth = params[0].get_int();
+
+    int nMaxDepth = 9999999;
+    if (params.size() > 1)
+        nMaxDepth = params[1].get_int();
+
+    Array results;
+    CTxDB txdb("r");
+
+    CRITICAL_BLOCK(cs_mapWallet)
+    {
+        for (map<uint256, CWalletTx>::iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
+        {
+            const CWalletTx& wtx = (*it).second;
+
+            if (wtx.IsCoinBase() && wtx.GetBlocksToMaturity() > 0)
+                continue;
+
+            int nDepth = wtx.GetDepthInMainChain();
+            if (nDepth < nMinDepth || nDepth > nMaxDepth)
+                continue;
+
+            for (int i = 0; i < wtx.vout.size(); i++)
+            {
+                const CTxOut& txout = wtx.vout[i];
+
+                if (!txout.IsMine())
+                    continue;
+
+                CTxIndex txindex;
+                if (!txdb.ReadTxIndex(wtx.GetHash(), txindex))
+                    continue;
+
+                if (i < txindex.vSpent.size() && !txindex.vSpent[i].IsNull())
+                    continue;
+
+                Object entry;
+                entry.push_back(Pair("txid", wtx.GetHash().ToString()));
+                entry.push_back(Pair("vout", i));
+
+                uint160 hash160;
+                if (ExtractHash160(txout.scriptPubKey, hash160))
+                    entry.push_back(Pair("address", Hash160ToAddress(hash160)));
+
+                entry.push_back(Pair("scriptPubKey", HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end())));
+                entry.push_back(Pair("amount", (double)txout.nValue / (double)COIN));
+                entry.push_back(Pair("confirmations", nDepth));
+
+                results.push_back(entry);
+            }
+        }
+    }
+
+    return results;
+}
+
+
+Value getpeerinfo(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getpeerinfo\n"
+            "Returns data about each connected network node.");
+
+    Array ret;
+    CRITICAL_BLOCK(cs_vNodes)
+    {
+        foreach(CNode* pnode, vNodes)
+        {
+            Object obj;
+            obj.push_back(Pair("addr", pnode->addr.ToString()));
+            obj.push_back(Pair("services", strprintf("%08" PRI64x, pnode->nServices)));
+            obj.push_back(Pair("lastsend", (boost::int64_t)pnode->nLastSend));
+            obj.push_back(Pair("lastrecv", (boost::int64_t)pnode->nLastRecv));
+            obj.push_back(Pair("conntime", (boost::int64_t)pnode->nTimeConnected));
+            obj.push_back(Pair("version", pnode->nVersion));
+            obj.push_back(Pair("inbound", pnode->fInbound));
+            obj.push_back(Pair("startingheight", pnode->nStartingHeight));
+            ret.push_back(obj);
+        }
+    }
+    return ret;
+}
+
 
 Value ListReceived(const Array& params, bool fByLabels)
 {
@@ -596,7 +1138,15 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("stop",                  &stop),
     make_pair("getblockcount",         &getblockcount),
     make_pair("getblocknumber",        &getblocknumber),
+    make_pair("getblockhash",          &getblockhash),
+    make_pair("getbestblockhash",      &getbestblockhash),
+    make_pair("getblock",              &getblock),
+    make_pair("gettransaction",        &gettransaction),
+    make_pair("getrawtransaction",     &getrawtransaction),
+    make_pair("getrawmempool",         &getrawmempool),
+    make_pair("validateaddress",       &validateaddress),
     make_pair("getconnectioncount",    &getconnectioncount),
+    make_pair("getpeerinfo",           &getpeerinfo),
     make_pair("getdifficulty",         &getdifficulty),
     make_pair("getbalance",            &getbalance),
     make_pair("getgenerate",           &getgenerate),
@@ -608,6 +1158,7 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("getaddressesbylabel",   &getaddressesbylabel),
     make_pair("sendtoaddress",         &sendtoaddress),
     make_pair("listtransactions",      &listtransactions),
+    make_pair("listunspent",           &listunspent),
     make_pair("getamountreceived",     &getreceivedbyaddress), // deprecated, renamed to getreceivedbyaddress
     make_pair("getallreceived",        &listreceivedbyaddress), // deprecated, renamed to listreceivedbyaddress
     make_pair("getreceivedbyaddress",  &getreceivedbyaddress),
@@ -916,11 +1467,15 @@ int CommandLineRPC(int argc, char *argv[])
             //
             // Special case non-string parameter types
             //
+            if (strMethod == "getblockhash"           && n > 0) ConvertTo<boost::int64_t>(params[0]);
+            if (strMethod == "getrawtransaction"      && n > 1) ConvertTo<boost::int64_t>(params[1]);
             if (strMethod == "setgenerate"            && n > 0) ConvertTo<bool>(params[0]);
             if (strMethod == "setgenerate"            && n > 1) ConvertTo<boost::int64_t>(params[1]);
             if (strMethod == "sendtoaddress"          && n > 1) ConvertTo<double>(params[1]);
             if (strMethod == "listtransactions"       && n > 0) ConvertTo<boost::int64_t>(params[0]);
             if (strMethod == "listtransactions"       && n > 1) ConvertTo<bool>(params[1]);
+            if (strMethod == "listunspent"            && n > 0) ConvertTo<boost::int64_t>(params[0]);
+            if (strMethod == "listunspent"            && n > 1) ConvertTo<boost::int64_t>(params[1]);
             if (strMethod == "getamountreceived"      && n > 1) ConvertTo<boost::int64_t>(params[1]); // deprecated
             if (strMethod == "getreceivedbyaddress"   && n > 1) ConvertTo<boost::int64_t>(params[1]);
             if (strMethod == "getreceivedbylabel"     && n > 1) ConvertTo<boost::int64_t>(params[1]);

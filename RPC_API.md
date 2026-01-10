@@ -236,6 +236,10 @@ Lists all available RPC commands.
 ```
 getblockcount
 getblocknumber
+getblockhash <index>
+getblock <hash>
+gettransaction <txid>
+validateaddress <address>
 getconnectioncount
 getdifficulty
 getbalance
@@ -648,7 +652,202 @@ Lists amounts received grouped by label.
 
 ---
 
+### listunspent
+
+Returns array of unspent transaction outputs (UTXOs) in the wallet.
+
+**Parameters:**
+- `minconf` (number, optional, default=1) - Minimum confirmations
+- `maxconf` (number, optional, default=9999999) - Maximum confirmations
+
+**Returns:** Array of objects containing:
+- `txid` (string) - Transaction ID
+- `vout` (number) - Output index
+- `address` (string) - Associated address
+- `scriptPubKey` (string) - Hex-encoded script
+- `amount` (number) - Amount in BITOK
+- `confirmations` (number) - Number of confirmations
+
+**Example:**
+```bash
+./bitokd listunspent
+./bitokd listunspent 6
+./bitokd listunspent 6 100
+```
+
+**Response:**
+```json
+[
+  {
+    "txid": "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd",
+    "vout": 0,
+    "address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+    "scriptPubKey": "76a914...",
+    "amount": 50.00000000,
+    "confirmations": 145
+  },
+  {
+    "txid": "b2c3d4e5f67890123456789012345678901234567890123456789012345bcde",
+    "vout": 1,
+    "address": "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
+    "scriptPubKey": "76a914...",
+    "amount": 25.50000000,
+    "confirmations": 12
+  }
+]
+```
+
+**Use Case - UTXO Selection for Transactions:**
+```python
+def select_utxos_for_amount(rpc, target_amount, min_conf=6):
+    """Select UTXOs to cover target amount"""
+    utxos = rpc.call('listunspent', [min_conf])
+
+    selected = []
+    total = 0.0
+
+    # Sort by amount (largest first) for efficiency
+    utxos.sort(key=lambda x: x['amount'], reverse=True)
+
+    for utxo in utxos:
+        if total >= target_amount:
+            break
+        selected.append(utxo)
+        total += utxo['amount']
+
+    if total < target_amount:
+        raise Exception(f"Insufficient funds: {total} < {target_amount}")
+
+    return {
+        'selected_utxos': selected,
+        'total_input': total,
+        'change': total - target_amount
+    }
+
+def get_spendable_balance(rpc, min_conf=6):
+    """Get total spendable balance from UTXOs"""
+    utxos = rpc.call('listunspent', [min_conf])
+    return sum(utxo['amount'] for utxo in utxos)
+```
+
+---
+
 ## Transaction Operations
+
+### getrawtransaction
+
+Returns raw transaction data. Can return hex-encoded or decoded verbose format.
+
+**Parameters:**
+- `txid` (string, required) - Transaction ID
+- `verbose` (number, optional, default=0) - If 0, returns hex string. If non-zero, returns decoded object.
+
+**Returns:**
+- If verbose=0: String (hex-encoded serialized transaction)
+- If verbose!=0: Object containing full transaction details
+
+**Example:**
+```bash
+./bitokd getrawtransaction "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd"
+./bitokd getrawtransaction "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd" 1
+```
+
+**Response (verbose=0):**
+```
+"0100000001abcd..."
+```
+
+**Response (verbose=1):**
+```json
+{
+  "hex": "0100000001abcd...",
+  "txid": "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd",
+  "version": 1,
+  "locktime": 0,
+  "vin": [
+    {
+      "txid": "previous_txid_hash",
+      "vout": 0,
+      "scriptSig": "483045...",
+      "sequence": 4294967295
+    }
+  ],
+  "vout": [
+    {
+      "value": 50.0,
+      "n": 0,
+      "scriptPubKey": "76a914...",
+      "address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+    }
+  ]
+}
+```
+
+**Use Case - Block Explorer Transaction Details:**
+```python
+def get_full_transaction(rpc, txid):
+    """Get complete transaction details for block explorer"""
+    tx = rpc.call('getrawtransaction', [txid, 1])
+
+    return {
+        'txid': tx['txid'],
+        'hex': tx['hex'],
+        'inputs': tx['vin'],
+        'outputs': tx['vout'],
+        'total_output': sum(out['value'] for out in tx['vout'])
+    }
+```
+
+---
+
+### getrawmempool
+
+Returns all transaction IDs currently in the memory pool (unconfirmed transactions).
+
+**Parameters:** None
+
+**Returns:** Array of transaction ID strings
+
+**Example:**
+```bash
+./bitokd getrawmempool
+```
+
+**Response:**
+```json
+[
+  "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd",
+  "b2c3d4e5f67890123456789012345678901234567890123456789012345bcde",
+  "c3d4e5f678901234567890123456789012345678901234567890123456cdef"
+]
+```
+
+**Use Case - Mempool Monitoring:**
+```python
+def monitor_mempool(rpc):
+    """Monitor pending transactions in mempool"""
+    mempool = rpc.call('getrawmempool')
+
+    return {
+        'pending_count': len(mempool),
+        'transaction_ids': mempool
+    }
+
+def wait_for_confirmation(rpc, txid, timeout=600):
+    """Wait for transaction to leave mempool (get confirmed)"""
+    import time
+    start = time.time()
+
+    while time.time() - start < timeout:
+        mempool = rpc.call('getrawmempool')
+        if txid not in mempool:
+            return True  # Transaction confirmed
+        time.sleep(10)
+
+    return False  # Still pending
+```
+
+---
 
 ### sendtoaddress
 
@@ -660,7 +859,7 @@ Sends BITOK to a specified address.
 - `comment` (string, optional) - Comment for transaction (stored locally)
 - `comment-to` (string, optional) - Comment about recipient (stored locally)
 
-**Returns:** String ("sent" on success)
+**Returns:** String (transaction ID / txid on success)
 
 **Example:**
 ```bash
@@ -670,7 +869,7 @@ Sends BITOK to a specified address.
 
 **Response:**
 ```
-"sent"
+"a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd"
 ```
 
 **Use Case - Exchange Withdrawal Processing:**
@@ -690,15 +889,15 @@ def process_withdrawal(rpc, withdrawal_id, address, amount):
     # Send transaction
     try:
         comment = f"withdrawal_{withdrawal_id}"
-        result = rpc.call('sendtoaddress', [address, amount, comment])
+        txid = rpc.call('sendtoaddress', [address, amount, comment])
 
-        # Update database
+        # Store txid for tracking
         db.execute(
-            "UPDATE withdrawals SET status='sent', sent_at=? WHERE id=?",
-            (datetime.now(), withdrawal_id)
+            "UPDATE withdrawals SET status='sent', txid=?, sent_at=? WHERE id=?",
+            (txid, datetime.now(), withdrawal_id)
         )
 
-        return {"success": True, "message": result}
+        return {"success": True, "txid": txid}
     except Exception as e:
         return {"error": str(e)}
 ```
@@ -708,6 +907,79 @@ def process_withdrawal(rpc, withdrawal_id, address, amount):
 - Amount is rounded to nearest 0.01 BITOK
 - Transaction fee is automatically deducted from balance
 - Comments are stored only in local wallet, not on blockchain
+
+---
+
+### listtransactions
+
+Lists recent wallet transactions sorted by time (most recent first).
+
+**Parameters:**
+- `count` (number, optional, default=10) - Number of transactions to return
+- `includegenerated` (boolean, optional, default=true) - Include generated (mined) transactions
+
+**Returns:** Array of transaction objects containing:
+- `txid` (string) - Transaction ID
+- `category` (string) - "send", "receive", or "generate"
+- `amount` (number) - Amount in BITOK (negative for sends)
+- `fee` (number) - Transaction fee (only for sends)
+- `address` (string) - Destination/source address
+- `confirmations` (number) - Number of confirmations
+- `time` (number) - Transaction timestamp
+
+**Example:**
+```bash
+./bitokd listtransactions 20 true
+```
+
+**Response:**
+```json
+[
+  {
+    "txid": "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd",
+    "category": "receive",
+    "amount": 50.00000000,
+    "address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+    "confirmations": 145,
+    "time": 1234567890
+  },
+  {
+    "txid": "b2c3d4e5f67890123456789012345678901234567890123456789012345bcde",
+    "category": "send",
+    "amount": -10.00000000,
+    "fee": -0.01000000,
+    "address": "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
+    "confirmations": 12,
+    "time": 1234567800
+  },
+  {
+    "txid": "c3d4e5f678901234567890123456789012345678901234567890123456cdef",
+    "category": "generate",
+    "amount": 50.00000000,
+    "confirmations": 200,
+    "time": 1234567700
+  }
+]
+```
+
+**Use Case - Exchange Deposit Scanner:**
+```python
+def scan_recent_deposits(rpc, min_confirmations=6):
+    """Scan recent transactions for confirmed deposits"""
+    transactions = rpc.call('listtransactions', [100, False])
+
+    deposits = []
+    for tx in transactions:
+        if tx['category'] == 'receive' and tx['confirmations'] >= min_confirmations:
+            deposits.append({
+                'txid': tx['txid'],
+                'address': tx['address'],
+                'amount': tx['amount'],
+                'confirmations': tx['confirmations']
+            })
+
+    return deposits
+```
 
 ---
 
@@ -854,6 +1126,76 @@ def check_network_health(rpc):
 
 ---
 
+### getpeerinfo
+
+Returns data about each connected network node.
+
+**Parameters:** None
+
+**Returns:** Array of objects containing:
+- `addr` (string) - IP address and port of the peer
+- `services` (string) - Services offered by the peer (hex)
+- `lastsend` (number) - Unix timestamp of last data sent
+- `lastrecv` (number) - Unix timestamp of last data received
+- `conntime` (number) - Unix timestamp when connection was established
+- `version` (number) - Protocol version of the peer
+- `inbound` (boolean) - True if peer initiated the connection
+- `startingheight` (number) - Block height of peer when connected
+
+**Example:**
+```bash
+./bitokd getpeerinfo
+```
+
+**Response:**
+```json
+[
+  {
+    "addr": "192.168.1.100:18333",
+    "services": "00000001",
+    "lastsend": 1609459200,
+    "lastrecv": 1609459195,
+    "conntime": 1609455600,
+    "version": 209,
+    "inbound": false,
+    "startingheight": 12450
+  },
+  {
+    "addr": "10.0.0.50:18333",
+    "services": "00000001",
+    "lastsend": 1609459198,
+    "lastrecv": 1609459199,
+    "conntime": 1609456000,
+    "version": 209,
+    "inbound": true,
+    "startingheight": 12448
+  }
+]
+```
+
+**Use Case - Network Monitoring Dashboard:**
+```python
+def monitor_peers(rpc):
+    """Get detailed peer information for monitoring"""
+    peers = rpc.call('getpeerinfo')
+
+    healthy_peers = 0
+    for peer in peers:
+        # Check if peer is active (sent/received within 5 minutes)
+        now = time.time()
+        if now - peer['lastrecv'] < 300:
+            healthy_peers += 1
+
+    return {
+        'total_peers': len(peers),
+        'healthy_peers': healthy_peers,
+        'inbound': sum(1 for p in peers if p['inbound']),
+        'outbound': sum(1 for p in peers if not p['inbound'])
+    }
+```
+
+---
+
 ## Block Chain Operations
 
 ### getblockcount
@@ -910,6 +1252,204 @@ Returns the block number of the latest block (height of chain).
 ```
 
 **Note:** `getblockcount` returns height + 1, while `getblocknumber` returns height (0-indexed).
+
+---
+
+### getbestblockhash
+
+Returns the hash of the best (tip) block in the longest block chain.
+
+**Parameters:** None
+
+**Returns:** String (64-character hexadecimal block hash)
+
+**Example:**
+```bash
+./bitokd getbestblockhash
+```
+
+**Response:**
+```
+"000007a5d9c7b6e7b8c9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1"
+```
+
+**Use Case - Quick Sync Check:**
+```python
+def check_chain_tip(rpc):
+    """Get current chain tip for sync verification"""
+    best_hash = rpc.call('getbestblockhash')
+    block_count = rpc.call('getblockcount')
+
+    return {
+        'tip_hash': best_hash,
+        'height': block_count
+    }
+```
+
+---
+
+### getblockhash
+
+Returns the hash of the block at a specific height in the best blockchain.
+
+**Parameters:**
+- `index` (number, required) - Block height (0 = genesis block)
+
+**Returns:** String (64-character hexadecimal block hash)
+
+**Example:**
+```bash
+./bitokd getblockhash 0
+```
+
+**Response:**
+```
+"000007a5d9c7b6e7b8c9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1"
+```
+
+**Use Cases:**
+- Block explorers navigating by height
+- Verifying blockchain consistency
+- Historical data queries
+
+---
+
+### getblock
+
+Returns detailed information about a block given its hash.
+
+**Parameters:**
+- `hash` (string, required) - 64-character hexadecimal block hash
+
+**Returns:** Object containing:
+- `hash` (string) - Block hash
+- `version` (number) - Block version
+- `previousblockhash` (string) - Hash of previous block
+- `merkleroot` (string) - Merkle root of transactions
+- `time` (number) - Block timestamp (Unix epoch)
+- `bits` (number) - Difficulty target in compact format
+- `nonce` (number) - Nonce used to solve block
+- `height` (number) - Block height in chain
+- `tx` (array) - Array of transaction hashes
+- `nextblockhash` (string, optional) - Hash of next block (if exists)
+
+**Example:**
+```bash
+./bitokd getblock "000007a5d9c7b6e7b8c9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1"
+```
+
+**Response:**
+```json
+{
+  "hash": "000007a5d9c7b6e7b8c9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1",
+  "version": 1,
+  "previousblockhash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "merkleroot": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
+  "time": 1231006505,
+  "bits": 486604799,
+  "nonce": 2083236893,
+  "height": 0,
+  "tx": [
+    "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
+  ]
+}
+```
+
+**Use Cases:**
+- Block explorers displaying block details
+- Blockchain indexers processing blocks
+- Verifying block contents
+
+---
+
+### gettransaction
+
+Returns detailed information about a transaction. For wallet transactions, includes balance changes. For any transaction in the blockchain, returns raw transaction data.
+
+**Parameters:**
+- `txid` (string, required) - 64-character hexadecimal transaction ID
+
+**Returns:** Object containing (for wallet transactions):
+- `txid` (string) - Transaction ID
+- `version` (number) - Transaction version
+- `time` (number) - Time received
+- `confirmations` (number) - Number of confirmations
+- `blockhash` (string) - Block containing transaction
+- `amount` (number) - Net amount (credit - debit)
+- `fee` (number) - Transaction fee (for outgoing)
+- `details` (array) - Array of transaction entries with:
+  - `category` (string) - "send", "receive", or "generate"
+  - `address` (string) - Address involved
+  - `amount` (number) - Amount for this entry
+
+For non-wallet transactions, returns:
+- `txid` (string) - Transaction ID
+- `version` (number) - Transaction version
+- `vin` (array) - Input array with txid/vout or coinbase
+- `vout` (array) - Output array with value, n, address
+
+**Example:**
+```bash
+./bitokd gettransaction "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+```
+
+**Response (wallet transaction):**
+```json
+{
+  "txid": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+  "version": 1,
+  "time": 1609459200,
+  "confirmations": 100,
+  "blockhash": "000007a5d9c7b6e7b8c9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1",
+  "amount": 50.0,
+  "details": [
+    {
+      "category": "receive",
+      "address": "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
+      "amount": 50.0
+    }
+  ]
+}
+```
+
+**Use Cases:**
+- Transaction lookup by ID
+- Verifying payment receipt
+- Exchange deposit/withdrawal tracking
+
+---
+
+### validateaddress
+
+Validates a Bitok address and returns information about it.
+
+**Parameters:**
+- `address` (string, required) - Bitok address to validate
+
+**Returns:** Object containing:
+- `address` (string) - The address checked
+- `isvalid` (boolean) - Whether the address is valid
+- `ismine` (boolean) - Whether address belongs to wallet (only if valid)
+- `label` (string) - Address label if in address book (only if valid)
+
+**Example:**
+```bash
+./bitokd validateaddress "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2"
+```
+
+**Response:**
+```json
+{
+  "address": "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
+  "isvalid": true,
+  "ismine": false
+}
+```
+
+**Use Cases:**
+- Validating user-provided addresses before sending
+- Checking if address belongs to local wallet
+- Address book management
 
 ---
 
@@ -1251,7 +1791,7 @@ The RPC interface returns HTTP status codes and JSON-RPC errors:
 | Invalid address | Malformed address | Validate address format |
 | Insufficient funds | Not enough balance | Check balance before sending |
 | Invalid amount | Amount out of range | Use 0.01 to 21000000 |
-| Wallet locked | Wallet encrypted | Unlock wallet (not in v0.3.19) |
+| Wallet locked | Wallet encrypted | Unlock wallet (not in v0.3.0) |
 
 ### Error Handling Example
 
@@ -1464,8 +2004,16 @@ def send_with_logging(rpc, address, amount, user_id):
 | getinfo | General | Get server information |
 | getblockcount | Blockchain | Get total block count |
 | getblocknumber | Blockchain | Get current block height |
+| getbestblockhash | Blockchain | Get hash of best (tip) block |
+| getblockhash | Blockchain | Get block hash by height |
+| getblock | Blockchain | Get block data by hash |
+| gettransaction | Transaction | Get transaction details by txid |
+| getrawtransaction | Transaction | Get raw transaction data (hex or decoded) |
+| getrawmempool | Transaction | Get all unconfirmed transaction IDs |
+| validateaddress | Utility | Validate address and check ownership |
 | getdifficulty | Mining | Get proof-of-work difficulty |
 | getconnectioncount | Network | Get peer count |
+| getpeerinfo | Network | Get detailed peer information |
 | getgenerate | Mining | Get mining status |
 | setgenerate | Mining | Enable/disable mining |
 | getbalance | Wallet | Get wallet balance |
@@ -1474,7 +2022,8 @@ def send_with_logging(rpc, address, amount, user_id):
 | getlabel | Wallet | Get address label |
 | getaddressesbylabel | Wallet | Get addresses by label |
 | sendtoaddress | Transaction | Send coins |
-| listtransactions | Transaction | List transactions (not implemented) |
+| listtransactions | Transaction | List recent transactions |
+| listunspent | Wallet | List unspent transaction outputs (UTXOs) |
 | getreceivedbyaddress | Wallet | Get amount received by address |
 | getreceivedbylabel | Wallet | Get amount received by label |
 | listreceivedbyaddress | Wallet | List received by address |
@@ -1482,8 +2031,8 @@ def send_with_logging(rpc, address, amount, user_id):
 
 ### Version History
 
-- **Bitcoin v0.3.19** (2010) - Original implementation by Satoshi Nakamoto
-- **Bitok** (2026) - Modern system compatibility, Yespower integration
+- **Bitcoin v0.3.0** (2010) - Original implementation by Satoshi Nakamoto
+- **Bitok** (2016) - Modern system compatibility, Yespower integration
 
 ### Additional Resources
 
@@ -1505,4 +2054,4 @@ For technical support and integration assistance:
 **Last Updated:** 2025
 **License:** MIT/X11
 
-*This documentation covers the RPC API as implemented in Bitcoin v0.3.19 / Bitok. Always test thoroughly in a development environment before deploying to production.*
+*This documentation covers the RPC API as implemented in Bitcoin v0.3.0 / Bitok. Always test thoroughly in a development environment before deploying to production.*
