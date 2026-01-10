@@ -1,8 +1,8 @@
 # Bitok RPC API Documentation
 
-**Complete JSON-RPC API Reference for Exchanges, Mining Pools, Block Explorers, and Wallet Integration**
+JSON-RPC API for exchanges, mining pools, block explorers, and whatever else you need it for.
 
-Version: Bitcoin 0.3.19 / Bitok
+Version: Bitok 0.3.19 Mainnet
 
 ---
 
@@ -24,65 +24,55 @@ Version: Bitcoin 0.3.19 / Bitok
 
 ## Introduction
 
-The Bitok RPC (Remote Procedure Call) API provides a JSON-RPC 1.0 interface for interacting with the Bitok daemon (`bitokd`). This interface allows external applications to query blockchain data, manage wallets, send transactions, and control mining operations.
+The Bitok daemon exposes a JSON-RPC 1.0 interface. You can query blockchain data, manage wallets, send transactions, and control mining.
 
 ### Protocol Details
 
-- **Protocol:** JSON-RPC 1.0
-- **Transport:** HTTP POST
-- **Default Port:** 8332
-- **Authentication:** HTTP Basic Auth
-- **Content-Type:** application/json
-
-### Use Cases
-
-- **Cryptocurrency Exchanges:** Deposit detection, withdrawal processing, balance management
-- **Mining Pools:** Work distribution, block submission, hashrate monitoring
-- **Block Explorers:** Blockchain data indexing, transaction tracking, address monitoring
-- **Payment Processors:** Invoice generation, payment verification, settlement
-- **Wallet Services:** Balance queries, transaction history, address generation
+| Property | Value |
+|----------|-------|
+| Protocol | JSON-RPC 1.0 |
+| Transport | HTTP POST |
+| Default Port | 8332 |
+| Authentication | HTTP Basic Auth |
+| Content-Type | application/json |
 
 ---
 
 ## Connection & Authentication
 
-### Configuration File
+### Everything is command-line flags.
 
-Create `~/.bitok/bitok.conf` (Linux/macOS) or `%APPDATA%\Bitok\bitok.conf` (Windows):
+```bash
+# Start daemon with RPC enabled
+./bitokd -rpcuser=yourusername -rpcpassword=yourpassword -server
 
-```ini
-# RPC server settings
-rpcuser=yourusername
-rpcpassword=yourpassword
-rpcport=8332
-rpcallowip=127.0.0.1
+# Run in background
+./bitokd -rpcuser=yourusername -rpcpassword=yourpassword -server -daemon
 
-# Optional: Enable server mode
-server=1
-daemon=1
+# Execute RPC command (uses same credentials)
+./bitokd -rpcuser=yourusername -rpcpassword=yourpassword getinfo
+./bitokd -rpcuser=yourusername -rpcpassword=yourpassword getbalance
+./bitokd -rpcuser=yourusername -rpcpassword=yourpassword getnewaddress "customer123"
+```
+
+Yes, you have to type the credentials every time. That's how it worked in 2010.
+
+Alternatively, use environment variables in a wrapper script:
+
+```bash
+#!/bin/bash
+# bitok-cli.sh
+BITOK_USER="yourusername"
+BITOK_PASS="yourpassword"
+./bitokd -rpcuser=$BITOK_USER -rpcpassword=$BITOK_PASS "$@"
 ```
 
 ### Security Recommendations
 
-1. **Strong Credentials:** Use long, random passwords (32+ characters)
-2. **Firewall Rules:** Restrict RPC port access to trusted IPs only
-3. **Local Only:** By default, bind to 127.0.0.1 for local access
-4. **HTTPS Tunnel:** Use SSH tunneling or reverse proxy for remote access
-
-### Command Line Access
-
-```bash
-# Start daemon with RPC enabled
-./bitokd -daemon -server
-
-# Execute RPC command
-./bitokd <command> [parameters]
-
-# Examples
-./bitokd getinfo
-./bitokd getbalance
-./bitokd getnewaddress "customer123"
-```
+1. **Strong Credentials:** Use long, random passwords. 32+ characters if you're paranoid.
+2. **Firewall Rules:** Restrict RPC port (8332) to trusted IPs only.
+3. **Local Only:** By default, RPC binds to 127.0.0.1. Don't change that unless you know what you're doing.
+4. **SSH Tunnel:** For remote access, tunnel through SSH instead of exposing the port.
 
 ### Programmatic Access
 
@@ -1833,14 +1823,24 @@ else:
 
 ### 1. Credential Management
 
-```ini
-# Strong credentials (32+ characters)
-rpcuser=bitok_rpc_user_a8f7d9c2b1e4
-rpcpassword=9k3mX7pQ2vL5wN8rT4yH6jU1cF9dE0aZ
+No config file. Pass credentials on command line:
 
-# Restrict IP access
-rpcallowip=127.0.0.1
-rpcallowip=10.0.1.0/24  # Internal network only
+```bash
+# Strong credentials (32+ characters recommended)
+./bitokd -rpcuser=bitok_rpc_user_a8f7d9c2b1e4 \
+         -rpcpassword=9k3mX7pQ2vL5wN8rT4yH6jU1cF9dE0aZ \
+         -server -daemon
+```
+
+Or use a wrapper script so you don't have to type them every time:
+
+```bash
+#!/bin/bash
+# /usr/local/bin/bitok-rpc
+exec /path/to/bitokd \
+    -rpcuser=bitok_rpc_user_a8f7d9c2b1e4 \
+    -rpcpassword=9k3mX7pQ2vL5wN8rT4yH6jU1cF9dE0aZ \
+    "$@"
 ```
 
 ### 2. Network Security
@@ -1854,6 +1854,8 @@ iptables -A INPUT -p tcp --dport 8332 -j DROP
 # Or use SSH tunnel for remote access
 ssh -L 8332:localhost:8332 user@bitok-server
 ```
+
+RPC binds to 127.0.0.1 by default. Keep it that way.
 
 ### 3. Hot Wallet Management
 
@@ -2031,7 +2033,7 @@ def send_with_logging(rpc, address, amount, user_id):
 
 ### Version History
 
-- **Bitcoin v0.3.0** (2010) - Original implementation by Satoshi Nakamoto
+- **Bitcoin v0.3.19** (2010) - Latest original implementation by Satoshi Nakamoto
 - **Bitok** (2016) - Modern system compatibility, Yespower integration
 
 ### Additional Resources
@@ -2051,7 +2053,7 @@ For technical support and integration assistance:
 ---
 
 **Document Version:** 1.0
-**Last Updated:** 2025
+**Last Updated:** 2026
 **License:** MIT/X11
 
-*This documentation covers the RPC API as implemented in Bitcoin v0.3.0 / Bitok. Always test thoroughly in a development environment before deploying to production.*
+*This documentation covers the RPC API as implemented in Bitok 0.3.19 Mainnet. Always test thoroughly in a development environment before deploying to production.*

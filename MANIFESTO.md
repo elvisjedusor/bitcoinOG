@@ -1,193 +1,147 @@
 # Bitok Manifesto
 
-Bitcoin was never meant to be finished. It was meant to be unleashed.
+## The Short Version
 
-Satoshi Nakamoto wrote the code, launched the network, fixed critical bugs, and then walked away. That was not abandonment. That was completion. A system that depends on its creator is not decentralized.
+I took Bitcoin v0.3.19, changed the mining algorithm so GPUs can't dominate, gave it a new genesis block, and ran it.
 
-Between July 2010 (v0.3.0) and December 2010 (v0.3.19), Satoshi worked with early developers to address critical security issues discovered in production. The value overflow incident in August 2010 - where an attacker created 184 billion coins - forced Bitcoin's only consensus fork during Satoshi's tenure. These fixes were necessary, not ideological.
+That's the manifesto. You can stop reading here.
 
-Bitcoin v0.3.19 was the last release under Satoshi's direct involvement. Everything after that is history. Not destiny.
+---
 
-## Running Bitok
+## The Longer Version (for those who enjoy reading)
 
-This is not a proposal. This is not a fork to convince anyone. This is not an argument on a forum.
+### What Happened to Bitcoin
 
-This is Bitcoin v0.3.19 - the complete Satoshi-era codebase, run as a separate chain from genesis.
+Bitcoin worked in 2010. You downloaded the software, clicked "Generate Coins," and your laptop found blocks. The network grew because participation was free and easy.
 
-The same rules. The same behavior. The same philosophy. All critical security fixes in place from day one. Adapted only as much as required to run on modern operating systems and resist GPU mining. No features added. No ideology injected. No attempt to "fix" Bitcoin according to modern tastes.
+Then GPUs happened. Then mining pools. Then FPGAs, ASICs. Then halvings made the reward small enough that only industrial operations made economic sense.
 
-This is not BTC. It does not compete with BTC. BTC is what Bitcoin became after years of social negotiation and ideological drift.
+The barrier to entry went from "own a computer" to "have access to cheap electricity and specialized hardware." Most people stopped mining. Many never started.
 
-Bitok is what Bitcoin was before it was captured by its own caretakers.
+This was not a conspiracy. It was economics. SHA-256 happens to be very fast on parallel hardware. Someone was always going to optimize it.
 
-## Bitcoin Was a Tool, Not a Doctrine
+### What Satoshi Said About It
 
-Bitcoin did not begin as an ideology. It began as software that solved a problem: how to transfer value over the internet without asking permission, without identity, without intermediaries, and without trusted parties.
+December 12, 2010:
 
-The whitepaper is short because the system was not supposed to be debated into existence. It was supposed to run. And it did.
+> We should have a gentleman's agreement to postpone the GPU arms race as long as we can for the good of the network. It's much easier to get new users up to speed if they don't have to worry about GPU drivers and compatibility. It's nice how anyone with just a CPU can compete fairly equally right now.
 
-By v0.3.19, Bitcoin worked as peer-to-peer electronic cash. Critical security issues had been addressed. Nodes discovered each other. Transactions propagated. Blocks were mined. Wallets generated keys automatically. Addresses were disposable. Balance mattered more than attribution.
+To Laszlo Hanyecz (the pizza guy):
 
-Privacy emerged naturally because the software handled complexity for the user instead of lecturing them about "best practices".
+> GPUs are much less evenly distributed, so the generated coins only go towards rewarding 20% of the people for joining the network instead of 100%.
 
-There was no concept of layers. No settlement abstraction. No scaling philosophy. No moral judgement about usage. If you created a transaction and it followed the rules, the network accepted it.
-
-Bitcoin did not ask why.
-
-## Satoshi on CPU Mining
-
-On December 12, 2010, Satoshi Nakamoto wrote:
-
-> We should have a gentleman's agreement to postpone the GPU arms race as long as we can for the good of the network. It's much easer to get new users up to speed if they don't have to worry about GPU drivers and compatibility. It's nice how anyone with just a CPU can compete fairly equally right now.
-
-In private correspondence with early developer Laszlo Hanyecz:
-
-> GPUs are much less evenly distributed, so the generated coins only go towards rewarding 20% of the people for joining the network instead of 100%. I don't mean to sound like a socialist, I don't care if wealth is concentrated, but for now, we get more growth by giving that money to 100% of the people than giving it to 20%.
-
-And he concluded:
+And:
 
 > It's inevitable that GPU compute clusters will eventually hog all the generated coins, but I don't want to hasten that day.
 
-This was not theoretical concern. It was design philosophy. Mining was meant to be accessible. Anyone with a laptop should be able to participate. The network's security came from distributed participation, not from specialized hardware oligopolies.
+He knew. He just didn't have a solution at the time.
 
-Bitcoin abandoned this principle. Bitok restores it.
+### Memory-Hard Algorithms
 
-## The First Corruption Was Governance
+In 2010, nobody had figured out memory-hard proof-of-work yet. Colin Percival published scrypt in 2009, but it wasn't designed for PoW and had some issues at high parameters.
 
-After Satoshi stepped back, the code did not immediately become evil. At first, changes were small, practical, and boring. Bug fixes. Platform support. Minor usability improvements.
+By 2019, Alexander Peslyak (Solar Designer) had refined the concept into Yespower - a memory-hard algorithm specifically designed to resist GPU and ASIC optimization while remaining efficient on CPUs.
 
-But something fundamental changed: ownership of direction.
+The idea is simple: if every hash requires ~128KB of random memory access, GPUs lose their parallelism advantage. A GPU has thousands of cores but limited memory bandwidth per core. A CPU has fewer cores but can feed each one efficiently.
 
-Bitcoin stopped being "software that exists" and became "software that is maintained". Decisions began to be justified not by whether the network functioned, but by whether a group agreed.
+### What Bitok Changes
 
-From that point on, Bitcoin was no longer just code. It was code plus social process.
+Three things:
 
-That was the seed of capture.
+1. **Yespower instead of SHA-256.** GPU miners don't get 1000x advantage anymore. More like 2x, if that. Not worth the driver headaches.
 
-## From Cash to Cathedral
+2. **New genesis block.** Separate network. No confusion with BTC. No replay attacks. Clean slate.
 
-Satoshi described Bitcoin as electronic cash. Not as a settlement layer. Not as a store of value narrative. Not as a base for financial engineering. Cash.
+3. **Modern build system.** The original code needed patches to compile on anything newer than Ubuntu 10.04. Now it builds on Ubuntu 24.04, macOS, Windows.
 
-Cash is used. Cash circulates. Cash is not precious because it is untouched.
+Everything else is exactly as Satoshi left it. Same 21 million cap. Same 10 minute blocks. Same halving schedule. Same transaction format. Same script system. Same wallet behavior.
 
-Modern Bitcoin rejected this. Usage was reframed as a threat. Transactions became "spam". Growth became "abuse". Fees became a filter. Instead of scaling the system to meet demand, demand was moralized away.
+### What Bitok Does Not Change
 
-Bitcoin was redefined so that most people should not use it directly. This was not forced by physics. It was chosen.
+- No new opcodes
+- No SegWit
+- No block size increase
+- No layer 2
+- No BIPs
+- No governance
+- No foundation
+- No roadmap
+- No improvement proposals
 
-The block size limit was introduced as a temporary safety measure. Satoshi said it could be raised. After he left, it became sacred.
+The protocol is frozen at December 2010. If you think Bitcoin needed all those changes to succeed, this probably isn't for you.
 
-Bitcoin turned inward. The network that was supposed to route around censorship began censoring itself socially.
+### Why
 
-## Layers Are Control Structures
+I wanted to mine Bitcoin with my laptop. Not buy ASICs. Not join pools. Not pay for cloud hashrate.
 
-Layer-2, layer-3, sidechains, hubs. These are not inherently evil. But they are not neutral either.
+I couldn't, because of physics and economics.
 
-Bitcoin did not start as a layered system. All transactions were first-class citizens. All users interacted with the same rules.
+So I made this instead.
 
-The moment you push normal usage off-chain, you create new points of coordination, liquidity control, routing policy, and power concentration.
+### The Philosophy Part (if you want one)
 
-Lightning did not emerge because Bitcoin had to evolve. It emerged because Bitcoin was intentionally constrained.
+Bitcoin's whitepaper is 9 pages. Most of it is math. Satoshi didn't write manifestos. He wrote code that worked and let people figure out what it meant.
 
-Instead of making the base system usable, complexity was added around it. Instead of one simple protocol, we now have a stack that only specialists understand.
+The code said: anyone can transact. Anyone can mine. No intermediaries. No permission.
 
-This is not decentralization. This is abstraction as control.
+Somewhere along the way, "anyone can mine" became "anyone with industrial-scale infrastructure can mine." That happened gradually and probably inevitably.
 
-A system ordinary people cannot reason about is not trustless. It is opaque.
+Bitok is an experiment in what Bitcoin would look like if the mining algorithm had been different from the start. Nothing more profound than that.
 
-## Wallets Were Never Identities
+### Who Is Tom Elvis Jedusor
 
-One of the most damaging lies modern Bitcoin teaches is that a wallet is an address and a private key. That idea did not exist in early Bitcoin.
+An anagram. A Harry Potter reference. A pseudonym.
 
-In the Satoshi-era code (through v0.3.19), wallets managed pools of keys. Addresses were ephemeral. You did not build identity around them. You did not reuse them. You did not expose your financial graph to the world by default.
+Why does it matter?
 
-Privacy was not a feature. It was an outcome of sane design.
+### Will This Succeed
 
-Modern Bitcoin normalized address reuse, static receiving addresses, public donation addresses, and identity-linked keys. Then it blamed users for being tracked.
+Define "succeed."
 
-This inversion is criminal. Bitcoin did not fail at privacy. Bitcoin was redesigned to abandon it.
+If you mean: will the software compile and run? Yes. I tested it.
 
-## Data Is Not Freedom
+If you mean: will people use it? Some might. Most won't. That's fine.
 
-Script extensions, inscriptions, NFTs, token layers. These are sold as innovation. In reality, they mark a shift away from Bitcoin's original purpose.
+If you mean: will it be worth money? I genuinely don't know. Probably not much. Markets are weird and I don't predict them.
 
-Bitcoin's script was intentionally limited. Not because Satoshi lacked imagination, but because complexity is attack surface.
+If you mean: will it stay decentralized? That depends on whether enough people run nodes. I can't control that. Neither can you. That's the point.
 
-Bitcoin was not meant to be a general data ledger. It was meant to move value reliably.
+### No Promises
 
-Turning Bitcoin into a container for arbitrary data does not make it more free. It makes it noisier, more expensive, and easier to surveil. It shifts incentives away from users toward miners extracting rent from block space auctions.
+I'm not going to tell you this will change the world. I'm not going to tell you to buy it. I'm not going to tell you anything you want to hear just because it sounds good.
 
-This is not evolution. This is repurposing.
+Here's software. It does what it says. Run it or don't.
 
-## What Changed From Original Bitcoin
+---
 
-Bitok is Bitcoin v0.3.19 with exactly three categories of changes:
+## Technical Specifications
 
-### 1. Modern System Compatibility
+```
+Algorithm:          Yespower 1.0 (N=2048, r=32)
+Block time:         10 minutes
+Block reward:       50 BITOK (halves every 210,000 blocks)
+Max supply:         21,000,000 BITOK
+Difficulty adjust:  every 2016 blocks
+Coinbase maturity:  100 blocks
+P2P port:           18333
+RPC port:           8332
+```
 
-OpenSSL 3.x compatibility (proper BIGNUM handling). Berkeley DB 5.3 C API (C++ bindings no longer exist in modern distros). Boost 1.74+ compatibility. GCC 11+ and C++11 standard compliance. wxWidgets 3.2 support for GUI builds.
+## Security Fixes Included
 
-These changes allow Satoshi's code to compile and run on Ubuntu 24.04. Zero functional differences. Zero ideological additions.
+All security fixes from Bitcoin v0.3.19 are present:
 
-### 2. GPU-Resistant Proof-of-Work
+- Value overflow protection (the 184 billion coin bug)
+- Blockchain checkpoints
+- DoS limits
+- IsStandard() transaction filtering
 
-Removed SHA-256 (GPU/ASIC-friendly). Added Yespower 1.0 (CPU-optimized, memory-hard). N=2048, r=32. Personalization: "BitokPoW". Automatically uses CPU-specific optimizations (SSE2, AVX, AVX2, AVX512).
+Bitcoin forked once in August 2010 to fix the overflow bug. Bitok launches with all fixes in place. No forks needed.
 
-This change implements what Satoshi asked for but never got: a mining algorithm that keeps GPU miners from hogging all the generated coins.
-
-Anyone with a laptop can mine. No special hardware. No driver hell. No oligopolies.
-
-### 3. New Genesis Block
-
-New genesis block hash: `0x0290400ea28d3fe79d102ca6b7cd11cee5eba9f17f2046c303d92f65d6ed2617`
-
-Separate network from BTC (no interference, no confusion). Same consensus rules, same economics, same peer-to-peer behavior.
-
-That is it. Everything else is exactly as Satoshi wrote it between 2009 and December 2010.
-
-Bitcoin v0.3.19 includes all critical security fixes from the Satoshi era:
-- Value overflow protection (prevents 184 billion coin bug)
-- Blockchain checkpoints (prevents deep reorganizations)
-- DoS limits (block size, message limits)
-- IsStandard() filter (only mines known transaction types)
-
-Unlike Bitcoin, which forked once in August 2010 to fix the overflow bug, Bitok launches with all fixes already in place. The protocol is complete. No forks. No compromises.
-
-No features added beyond what Satoshi implemented. No protocol extensions. No layers. No abstractions. No "improvements."
-
-## No Leaders, No Roadmap, No Permission
-
-There is no foundation. There is no core team. There is no roadmap.
-
-If you run the software, you are the network. If you don't, you are irrelevant. That is not harsh. That is honest.
-
-This system does not promise mass adoption, regulatory approval, or price appreciation. It promises exactly one thing: that the software will do what it says, and nothing more.
-
-You are responsible for your keys. You are responsible for your node. You are responsible for your mistakes.
-
-That is what freedom looks like in code.
-
-## Masks Matter
-
-Who is Tom Elvis Jedusor? No one.
-
-Systems that require real names are systems that can be shut down. There are no heroes here. Only software and consequences.
-
-## This Is Not Nostalgia
-
-This is not about the past. It is about proving that Bitcoin did not need permission to work then, and does not need it now.
-
-Bitcoin was not broken. It was reinterpreted.
-
-Bitok exists to show that the original code still works. And that freedom did not require layers, councils, or approval.
-
-Run the code. That is the manifesto.
+## Source
 
 https://github.com/elvisjedusor/bitok
 
 ---
 
-## Sources
-
-Satoshi Nakamoto's quotes on GPU mining:
-- [Satoshi Nakamoto Institute - Mining Quotes](https://satoshi.nakamotoinstitute.org/quotes/mining/)
-- [BitcoinTalk Forum Archive](https://satoshi.nakamotoinstitute.org/posts/bitcointalk/)
+Run the code. That is the manifesto.
