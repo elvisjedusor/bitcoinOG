@@ -1033,8 +1033,8 @@ public:
         if (bnTarget > bnProofOfWorkLimit)
             return error("CBlock::ReadFromDisk() : nBits errors in block header");
 
-        if (GetHash() > bnTarget.getuint256())
-            return error("CBlock::ReadFromDisk() : GetHash() errors in block header");
+        if (GetPoWHash() > bnTarget.getuint256())
+            return error("CBlock::ReadFromDisk() : GetPoWHash() errors in block header");
 
         return true;
     }
