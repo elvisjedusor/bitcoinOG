@@ -4,6 +4,7 @@
 
 #include "headers.h"
 #undef printf
+#undef snprintf
 #ifdef _WIN32
 #define BOOST_ASIO_DISABLE_IOCP
 #endif
@@ -746,7 +747,11 @@ void ThreadRPCServer2(void* parg)
     printf("ThreadRPCServer started\n");
 
     // Bind to loopback 127.0.0.1 so the socket can only be accessed locally
+#if BOOST_VERSION >= 106600
+    boost::asio::io_context io_service;
+#else
     boost::asio::io_service io_service;
+#endif
     tcp::endpoint endpoint(boost::asio::ip::address_v4::loopback(), 8332);
     tcp::acceptor acceptor(io_service, endpoint);
 
@@ -756,7 +761,11 @@ void ThreadRPCServer2(void* parg)
         tcp::iostream stream;
         tcp::endpoint peer;
         vnThreadsRunning[4]--;
+#if BOOST_VERSION >= 106600
+        acceptor.accept(stream.rdbuf()->socket(), peer);
+#else
         acceptor.accept(*stream.rdbuf(), peer);
+#endif
         vnThreadsRunning[4]++;
         if (fShutdown)
             return;

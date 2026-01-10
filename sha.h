@@ -72,8 +72,11 @@ inline word16 ByteReverse(word16 value)
 
 inline word32 ByteReverse(word32 value)
 {
-#if defined(__GNUC__)
+#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
     __asm__ ("bswap %0" : "=r" (value) : "0" (value));
+    return value;
+#elif defined(__GNUC__) && (defined(__aarch64__) || defined(__arm64__))
+    __asm__ ("rev %w0, %w0" : "+r" (value));
     return value;
 #elif defined(CRYPTOPP_BYTESWAP_AVAILABLE)
     return bswap_32(value);
