@@ -48,8 +48,6 @@ bool DecodeAddress(string str, CAddress& addr)
 
 static bool Send(SOCKET hSocket, const char* pszSend)
 {
-    if (strstr(pszSend, "PONG") != pszSend)
-        printf("IRC SENDING: %s\n", pszSend);
     const char* psz = pszSend;
     const char* pszEnd = psz + strlen(psz);
     while (psz < pszEnd)
@@ -130,7 +128,6 @@ int RecvUntil(SOCKET hSocket, const char* psz1, const char* psz2=NULL, const cha
         string strLine;
         if (!RecvLineIRC(hSocket, strLine))
             return 0;
-        printf("IRC %s\n", strLine.c_str());
         if (psz1 && strLine.find(psz1) != -1)
             return 1;
         if (psz2 && strLine.find(psz2) != -1)
@@ -251,9 +248,6 @@ void ThreadIRCSeed(void* parg)
                 // index 7 is limited to 16 characters
                 // could get full length name at index 10, but would be different from join messages
                 strlcpy(pszName, vWords[7].c_str(), sizeof(pszName));
-                printf("IRC got who: nickname='%s' (field 7)\n", pszName);
-                if (vWords.size() >= 11)
-                    printf("  Also available: field 10='%s'\n", vWords[10].c_str());
             }
 
             if (vWords[1] == "JOIN" && vWords[0].size() > 1)
@@ -262,7 +256,6 @@ void ThreadIRCSeed(void* parg)
                 strlcpy(pszName, vWords[0].c_str() + 1, sizeof(pszName));
                 if (strchr(pszName, '!'))
                     *strchr(pszName, '!') = '\0';
-                printf("IRC got join\n");
             }
 
             if (pszName[0] == 'u')
@@ -273,18 +266,8 @@ void ThreadIRCSeed(void* parg)
                     addr.nTime = GetAdjustedTime() - 51 * 60;
                     if (AddAddress(addr))
                         printf("IRC got new address: %s\n", addr.ToString().c_str());
-                    else
-                        printf("IRC address already known: %s\n", addr.ToString().c_str());
                     nGotIRCAddresses++;
                 }
-                else
-                {
-                    printf("IRC decode failed for: %s\n", pszName);
-                }
-            }
-            else if (pszName[0] != '\0')
-            {
-                printf("IRC skipping nickname (doesn't start with 'u'): %s\n", pszName);
             }
         }
         closesocket(hSocket);

@@ -25,12 +25,13 @@ jobs:
 
     - name: Install dependencies
       run: |
-        brew install boost berkeley-db@4 openssl@3 wxwidgets
+        brew install boost berkeley-db@4 openssl@3 wxwidgets jpeg-turbo webp giflib xz zstd libpng libtiff pcre2
 
     - name: Verify dependencies
       run: |
-        brew list boost berkeley-db@4 openssl@3 wxwidgets
+        brew list boost berkeley-db@4 openssl@3 wxwidgets jpeg-turbo webp giflib xz zstd libpng libtiff pcre2
         wx-config --version
+        ls -la $(brew --prefix)/opt/jpeg-turbo/lib/ || true
 
     - name: Build native binaries
       run: |
@@ -48,202 +49,407 @@ jobs:
         file bitok
         otool -L bitok
 
-    - name: Bundle dependencies
+    - name: Bundle dependencies for daemon
       run: |
-        # Get Homebrew prefix
         BREW_PREFIX=$(brew --prefix)
+        echo "Homebrew prefix: $BREW_PREFIX"
 
-        echo "=== Bundling OpenSSL libraries ==="
         mkdir -p libs
+
+        echo "=== Copying OpenSSL libraries ==="
         cp "${BREW_PREFIX}/opt/openssl@3/lib/libssl.3.dylib" libs/
         cp "${BREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib" libs/
 
-        echo "=== Checking wxWidgets dependencies ==="
-        # wxWidgets may have additional dependencies that need bundling
-        # We'll check what bitok links to and bundle those as well
-        otool -L bitok | grep -E "wx|boost" | awk '{print $1}' | while read lib; do
-          if [ -f "$lib" ]; then
-            echo "Bundling: $lib"
-            cp "$lib" libs/ 2>/dev/null || true
+        echo "=== Copying Boost libraries (if dynamically linked) ==="
+        for boostlib in "$BREW_PREFIX"/opt/boost/lib/libboost*.dylib; do
+          if [ -f "$boostlib" ] && [ ! -L "$boostlib" ]; then
+            libname=$(basename "$boostlib")
+            echo "Copying: $libname"
+            cp -f "$boostlib" libs/
           fi
         done
 
-        # Fix library paths in the bundled libraries themselves
-        echo "=== Fixing bundled library IDs ==="
-        for lib in libs/*.dylib; do
-          if [ -f "$lib" ]; then
-            libname=$(basename "$lib")
-            echo "Fixing ID for: $libname"
-            install_name_tool -id "@rpath/$libname" "$lib" 2>/dev/null || true
+        echo "=== Fixing library IDs ==="
+        chmod u+w libs/*.dylib
+        install_name_tool -id "@rpath/libssl.3.dylib" libs/libssl.3.dylib
+        install_name_tool -id "@rpath/libcrypto.3.dylib" libs/libcrypto.3.dylib
+
+        for boostlib in libs/libboost*.dylib; do
+          if [ -f "$boostlib" ]; then
+            libname=$(basename "$boostlib")
+            echo "Fixing ID: $libname"
+            install_name_tool -id "@rpath/$libname" "$boostlib"
           fi
         done
 
-        # Fix inter-library dependencies in bundled libs
-        install_name_tool -change "${BREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib" "@rpath/libcrypto.3.dylib" libs/libssl.3.dylib 2>/dev/null || true
+        echo "=== Fixing inter-library dependencies ==="
+        install_name_tool -change "${BREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib" "@rpath/libcrypto.3.dylib" libs/libssl.3.dylib
 
-        # Fix paths in bitokd
-        echo "=== Fixing bitokd library references ==="
-        install_name_tool -change "${BREW_PREFIX}/opt/openssl@3/lib/libssl.3.dylib" "@rpath/libssl.3.dylib" bitokd 2>/dev/null || true
-        install_name_tool -change "${BREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib" "@rpath/libcrypto.3.dylib" bitokd 2>/dev/null || true
-
-        # Fix paths in bitok - handle all homebrew libraries
-        echo "=== Fixing bitok library references ==="
-        otool -L bitok | grep "${BREW_PREFIX}" | awk '{print $1}' | while read lib; do
-          libname=$(basename "$lib")
-          echo "  Rewriting: $lib -> @rpath/$libname"
-          install_name_tool -change "$lib" "@rpath/$libname" bitok 2>/dev/null || true
+        for dylib in libs/*.dylib; do
+          if [ -f "$dylib" ]; then
+            for boostdep in libs/libboost*.dylib; do
+              if [ -f "$boostdep" ]; then
+                boostname=$(basename "$boostdep")
+                install_name_tool -change "$BREW_PREFIX/opt/boost/lib/$boostname" "@rpath/$boostname" "$dylib" 2>/dev/null || true
+                install_name_tool -change "/usr/local/opt/boost/lib/$boostname" "@rpath/$boostname" "$dylib" 2>/dev/null || true
+              fi
+            done
+          fi
         done
 
-        echo "=== Verifying bitokd dependencies ==="
+        echo "=== Fixing bitokd references ==="
+        install_name_tool -change "${BREW_PREFIX}/opt/openssl@3/lib/libssl.3.dylib" "@rpath/libssl.3.dylib" bitokd
+        install_name_tool -change "${BREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib" "@rpath/libcrypto.3.dylib" bitokd
+        install_name_tool -change "/usr/local/opt/openssl@3/lib/libssl.3.dylib" "@rpath/libssl.3.dylib" bitokd 2>/dev/null || true
+        install_name_tool -change "/usr/local/opt/openssl@3/lib/libcrypto.3.dylib" "@rpath/libcrypto.3.dylib" bitokd 2>/dev/null || true
+
+        for boostlib in libs/libboost*.dylib; do
+          if [ -f "$boostlib" ]; then
+            boostname=$(basename "$boostlib")
+            install_name_tool -change "$BREW_PREFIX/opt/boost/lib/$boostname" "@rpath/$boostname" bitokd 2>/dev/null || true
+            install_name_tool -change "/usr/local/opt/boost/lib/$boostname" "@rpath/$boostname" bitokd 2>/dev/null || true
+          fi
+        done
+
+        install_name_tool -add_rpath "@executable_path/libs" bitokd 2>/dev/null || true
+
+        echo "=== Bundled daemon libraries ==="
+        ls -la libs/
+
+        echo "=== Verifying bitokd ==="
         otool -L bitokd
 
-        echo "=== Verifying bitok dependencies ==="
-        otool -L bitok
+        echo ""
+        echo "=== Checking for unbundled Homebrew references ==="
+        if otool -L bitokd | grep -E "/opt/homebrew|/usr/local/opt" | grep -v "@rpath"; then
+          echo "WARNING: Found unbundled Homebrew dependencies!"
+        else
+          echo "OK: All Homebrew dependencies use @rpath"
+        fi
 
     - name: Strip binaries
       run: |
         strip bitokd
         strip bitok
-        strip libs/*.dylib
 
     - name: Create .app bundle
       run: |
+        set -e
+        shopt -s nullglob
+
+        HOMEBREW_PREFIX=$(brew --prefix)
+        echo "Homebrew prefix: $HOMEBREW_PREFIX"
+
         make -f makefile.osx bundle
 
-        # Bundle libraries with .app
         mkdir -p Bitok.app/Contents/Frameworks
-        cp libs/*.dylib Bitok.app/Contents/Frameworks/
+        chmod -R u+w Bitok.app/Contents/Frameworks/ 2>/dev/null || true
 
-        # Fix rpath in app bundle binary
-        install_name_tool -add_rpath "@executable_path/../Frameworks" Bitok.app/Contents/MacOS/bitok 2>/dev/null || true
+        cp -f libs/*.dylib Bitok.app/Contents/Frameworks/
 
-        echo "=== Verifying app bundle binary ==="
-        otool -L Bitok.app/Contents/MacOS/bitok
+        echo "=== Copying wxWidgets libraries ==="
+        for wxlib in "$HOMEBREW_PREFIX"/opt/wxwidgets/lib/libwx*.dylib; do
+          if [ -f "$wxlib" ] && [ ! -L "$wxlib" ]; then
+            libname=$(basename "$wxlib")
+            echo "Copying: $libname"
+            cp -f "$wxlib" Bitok.app/Contents/Frameworks/
+          fi
+        done
+
+        for wxlib in "$HOMEBREW_PREFIX"/opt/wxwidgets/lib/libwx*.dylib; do
+          if [ -L "$wxlib" ]; then
+            resolved=$(readlink -f "$wxlib" 2>/dev/null || greadlink -f "$wxlib" 2>/dev/null || echo "")
+            if [ -f "$resolved" ]; then
+              libname=$(basename "$resolved")
+              if [ ! -f "Bitok.app/Contents/Frameworks/$libname" ]; then
+                echo "Copying resolved: $libname"
+                cp -f "$resolved" Bitok.app/Contents/Frameworks/
+              fi
+            fi
+          fi
+        done
+
+        echo "=== Copying wxWidgets transitive dependencies ==="
+        copy_homebrew_dep() {
+          local dep_path="$1"
+          local libname=$(basename "$dep_path")
+          if [ ! -f "Bitok.app/Contents/Frameworks/$libname" ]; then
+            echo "Copying dependency: $libname"
+            cp -f "$dep_path" Bitok.app/Contents/Frameworks/ 2>/dev/null || true
+          fi
+        }
+
+        for pkg in libpng libjpeg-turbo jpeg-turbo libtiff pcre2 expat zstd xz webp giflib; do
+          pkg_path="$HOMEBREW_PREFIX/opt/$pkg/lib"
+          if [ -d "$pkg_path" ]; then
+            echo "Checking $pkg..."
+            for lib in "$pkg_path"/*.dylib; do
+              if [ -f "$lib" ] && [ ! -L "$lib" ]; then
+                copy_homebrew_dep "$lib"
+              elif [ -L "$lib" ]; then
+                resolved=$(readlink -f "$lib" 2>/dev/null || greadlink -f "$lib" 2>/dev/null || echo "")
+                if [ -f "$resolved" ]; then
+                  targetname=$(basename "$lib")
+                  if [ ! -f "Bitok.app/Contents/Frameworks/$targetname" ]; then
+                    echo "Copying resolved symlink $targetname -> $(basename $resolved)"
+                    cp -f "$resolved" "Bitok.app/Contents/Frameworks/$targetname"
+                  fi
+                fi
+              fi
+            done
+          fi
+        done
+
+        echo "=== Explicitly copying libjpeg from jpeg-turbo ==="
+        for jpeg_path in "$HOMEBREW_PREFIX/opt/jpeg-turbo/lib" "$HOMEBREW_PREFIX/opt/libjpeg-turbo/lib"; do
+          if [ -d "$jpeg_path" ]; then
+            echo "Found jpeg at: $jpeg_path"
+            ls -la "$jpeg_path"/*.dylib 2>/dev/null || true
+            for jpeglib in "$jpeg_path"/libjpeg*.dylib; do
+              if [ -e "$jpeglib" ]; then
+                libname=$(basename "$jpeglib")
+                if [ -L "$jpeglib" ]; then
+                  resolved=$(readlink -f "$jpeglib" 2>/dev/null || greadlink -f "$jpeglib" 2>/dev/null || echo "")
+                  if [ -f "$resolved" ]; then
+                    echo "Copying jpeg lib (resolved): $libname"
+                    cp -f "$resolved" "Bitok.app/Contents/Frameworks/$libname"
+                  fi
+                elif [ -f "$jpeglib" ]; then
+                  echo "Copying jpeg lib: $libname"
+                  cp -f "$jpeglib" "Bitok.app/Contents/Frameworks/$libname"
+                fi
+              fi
+            done
+          fi
+        done
+
+        echo "=== Copying Boost libraries ==="
+        for boostlib in "$HOMEBREW_PREFIX"/opt/boost/lib/libboost*.dylib; do
+          if [ -f "$boostlib" ] && [ ! -L "$boostlib" ]; then
+            libname=$(basename "$boostlib")
+            echo "Copying: $libname"
+            cp -f "$boostlib" Bitok.app/Contents/Frameworks/
+          fi
+        done
+
+        for dylib in Bitok.app/Contents/Frameworks/*.dylib; do
+          chmod u+w "$dylib" 2>/dev/null || true
+        done
+
+        echo "=== Auto-resolving missing dependencies ==="
+        resolve_deps() {
+          local changed=1
+          local iteration=0
+          while [ "$changed" -eq 1 ] && [ "$iteration" -lt 10 ]; do
+            changed=0
+            iteration=$((iteration + 1))
+            echo "Dependency resolution pass $iteration..."
+
+            for dylib in Bitok.app/Contents/Frameworks/*.dylib "$APPBIN"; do
+              if [ -f "$dylib" ]; then
+                deps=$(otool -L "$dylib" 2>/dev/null | grep -E "/opt/homebrew|/usr/local/opt" | awk '{print $1}' || true)
+                for dep in $deps; do
+                  depname=$(basename "$dep")
+                  if [ ! -f "Bitok.app/Contents/Frameworks/$depname" ]; then
+                    if [ -f "$dep" ]; then
+                      echo "Auto-copying missing dependency: $depname"
+                      cp -f "$dep" "Bitok.app/Contents/Frameworks/"
+                      chmod u+w "Bitok.app/Contents/Frameworks/$depname"
+                      changed=1
+                    elif [ -L "$dep" ]; then
+                      resolved=$(readlink -f "$dep" 2>/dev/null || greadlink -f "$dep" 2>/dev/null || echo "")
+                      if [ -f "$resolved" ]; then
+                        echo "Auto-copying missing dependency (resolved symlink): $depname"
+                        cp -f "$resolved" "Bitok.app/Contents/Frameworks/$depname"
+                        chmod u+w "Bitok.app/Contents/Frameworks/$depname"
+                        changed=1
+                      fi
+                    fi
+                  fi
+                done
+              fi
+            done
+          done
+          echo "Dependency resolution completed after $iteration passes"
+        }
+
+        APPBIN="Bitok.app/Contents/MacOS/bitok"
+        resolve_deps
+
+        echo "=== Bundled libraries ==="
+        ls -la Bitok.app/Contents/Frameworks/
+
+        echo "=== Fixing library install names ==="
+        for dylib in Bitok.app/Contents/Frameworks/*.dylib; do
+          if [ -f "$dylib" ]; then
+            libname=$(basename "$dylib")
+            echo "Processing: $libname"
+
+            install_name_tool -id "@rpath/$libname" "$dylib"
+
+            for dep in Bitok.app/Contents/Frameworks/*.dylib; do
+              depname=$(basename "$dep")
+              install_name_tool -change "$HOMEBREW_PREFIX/opt/wxwidgets/lib/$depname" "@rpath/$depname" "$dylib" 2>/dev/null || true
+              install_name_tool -change "/usr/local/opt/wxwidgets/lib/$depname" "@rpath/$depname" "$dylib" 2>/dev/null || true
+              install_name_tool -change "$HOMEBREW_PREFIX/opt/boost/lib/$depname" "@rpath/$depname" "$dylib" 2>/dev/null || true
+              install_name_tool -change "/usr/local/opt/boost/lib/$depname" "@rpath/$depname" "$dylib" 2>/dev/null || true
+            done
+
+            for pkg in libpng libjpeg-turbo jpeg-turbo libtiff pcre2 expat zstd xz openssl@3 webp giflib; do
+              pkg_path="$HOMEBREW_PREFIX/opt/$pkg/lib"
+              if [ -d "$pkg_path" ]; then
+                for pkglib in "$pkg_path"/*.dylib; do
+                  if [ -f "$pkglib" ]; then
+                    pkglibname=$(basename "$pkglib")
+                    install_name_tool -change "$pkglib" "@rpath/$pkglibname" "$dylib" 2>/dev/null || true
+                    install_name_tool -change "/usr/local/opt/$pkg/lib/$pkglibname" "@rpath/$pkglibname" "$dylib" 2>/dev/null || true
+                  fi
+                done
+              fi
+            done
+
+            install_name_tool -change "/usr/local/opt/jpeg-turbo/lib/libjpeg.8.dylib" "@rpath/libjpeg.8.dylib" "$dylib" 2>/dev/null || true
+            install_name_tool -change "$HOMEBREW_PREFIX/opt/jpeg-turbo/lib/libjpeg.8.dylib" "@rpath/libjpeg.8.dylib" "$dylib" 2>/dev/null || true
+            install_name_tool -change "/usr/local/opt/libjpeg-turbo/lib/libjpeg.8.dylib" "@rpath/libjpeg.8.dylib" "$dylib" 2>/dev/null || true
+            install_name_tool -change "$HOMEBREW_PREFIX/opt/libjpeg-turbo/lib/libjpeg.8.dylib" "@rpath/libjpeg.8.dylib" "$dylib" 2>/dev/null || true
+          fi
+        done
+
+        echo "=== Fixing app binary ==="
+        for fwlib in Bitok.app/Contents/Frameworks/*.dylib; do
+          libname=$(basename "$fwlib")
+          install_name_tool -change "$HOMEBREW_PREFIX/opt/wxwidgets/lib/$libname" "@rpath/$libname" "$APPBIN" 2>/dev/null || true
+          install_name_tool -change "/usr/local/opt/wxwidgets/lib/$libname" "@rpath/$libname" "$APPBIN" 2>/dev/null || true
+          install_name_tool -change "$HOMEBREW_PREFIX/opt/boost/lib/$libname" "@rpath/$libname" "$APPBIN" 2>/dev/null || true
+          install_name_tool -change "/usr/local/opt/boost/lib/$libname" "@rpath/$libname" "$APPBIN" 2>/dev/null || true
+        done
+
+        for pkg in libpng libjpeg-turbo jpeg-turbo libtiff pcre2 expat zstd xz openssl@3 webp giflib; do
+          pkg_path="$HOMEBREW_PREFIX/opt/$pkg/lib"
+          if [ -d "$pkg_path" ]; then
+            for pkglib in "$pkg_path"/*.dylib; do
+              if [ -f "$pkglib" ]; then
+                pkglibname=$(basename "$pkglib")
+                install_name_tool -change "$pkglib" "@rpath/$pkglibname" "$APPBIN" 2>/dev/null || true
+                install_name_tool -change "/usr/local/opt/$pkg/lib/$pkglibname" "@rpath/$pkglibname" "$APPBIN" 2>/dev/null || true
+              fi
+            done
+          fi
+        done
+
+        install_name_tool -change "/usr/local/opt/jpeg-turbo/lib/libjpeg.8.dylib" "@rpath/libjpeg.8.dylib" "$APPBIN" 2>/dev/null || true
+        install_name_tool -change "$HOMEBREW_PREFIX/opt/jpeg-turbo/lib/libjpeg.8.dylib" "@rpath/libjpeg.8.dylib" "$APPBIN" 2>/dev/null || true
+        install_name_tool -change "/usr/local/opt/libjpeg-turbo/lib/libjpeg.8.dylib" "@rpath/libjpeg.8.dylib" "$APPBIN" 2>/dev/null || true
+        install_name_tool -change "$HOMEBREW_PREFIX/opt/libjpeg-turbo/lib/libjpeg.8.dylib" "@rpath/libjpeg.8.dylib" "$APPBIN" 2>/dev/null || true
+
+        install_name_tool -add_rpath "@executable_path/../Frameworks" "$APPBIN" 2>/dev/null || true
+
+        echo "=== Comprehensive path fix (catch-all) ==="
+        for target in Bitok.app/Contents/Frameworks/*.dylib "$APPBIN"; do
+          if [ -f "$target" ]; then
+            deps=$(otool -L "$target" 2>/dev/null | grep -E "/opt/homebrew|/usr/local/opt" | awk '{print $1}' || true)
+            for dep in $deps; do
+              depname=$(basename "$dep")
+              if [ -f "Bitok.app/Contents/Frameworks/$depname" ]; then
+                echo "Fixing reference in $(basename $target): $dep -> @rpath/$depname"
+                install_name_tool -change "$dep" "@rpath/$depname" "$target" 2>/dev/null || true
+              fi
+            done
+          fi
+        done
+
+        echo "=== Final verification ==="
+        echo "--- App binary dependencies ---"
+        otool -L "$APPBIN"
+
+        echo ""
+        echo "--- Checking Framework libraries for unbundled deps ---"
+        MISSING_DEPS=""
+        HAS_ERRORS=0
+        for dylib in Bitok.app/Contents/Frameworks/*.dylib; do
+          unbundled=$(otool -L "$dylib" 2>/dev/null | grep -E "/opt/homebrew|/usr/local/opt" | grep -v "@rpath" || true)
+          if [ -n "$unbundled" ]; then
+            echo "ERROR: $(basename $dylib) has unbundled deps:"
+            echo "$unbundled"
+            MISSING_DEPS="$MISSING_DEPS $unbundled"
+            HAS_ERRORS=1
+          fi
+        done
+
+        echo ""
+        echo "--- Checking for non-rpath Homebrew references in binary ---"
+        if otool -L "$APPBIN" | grep -E "/opt/homebrew|/usr/local/opt" | grep -v "@rpath"; then
+          echo "ERROR: Found unbundled Homebrew dependencies in app binary!"
+          HAS_ERRORS=1
+        else
+          echo "OK: All Homebrew dependencies use @rpath"
+        fi
+
+        if [ "$HAS_ERRORS" -eq 1 ]; then
+          echo ""
+          echo "FATAL: Build has unbundled dependencies that will fail at runtime!"
+          exit 1
+        fi
+
+        echo ""
+        echo "--- Framework libraries ---"
+        ls -lh Bitok.app/Contents/Frameworks/
+
+        echo ""
+        echo "--- Verifying critical libraries ---"
+        if [ -f "Bitok.app/Contents/Frameworks/libjpeg.8.dylib" ]; then
+          echo "OK: libjpeg.8.dylib is present"
+        else
+          echo "ERROR: libjpeg.8.dylib is MISSING!"
+          echo "Checking jpeg-turbo installation..."
+          ls -la "$HOMEBREW_PREFIX/opt/jpeg-turbo/lib/" 2>/dev/null || echo "jpeg-turbo not found at $HOMEBREW_PREFIX/opt/jpeg-turbo"
+          ls -la "$HOMEBREW_PREFIX/opt/libjpeg-turbo/lib/" 2>/dev/null || echo "libjpeg-turbo not found at $HOMEBREW_PREFIX/opt/libjpeg-turbo"
+          exit 1
+        fi
+
+        webp_found=0
+        for webplib in Bitok.app/Contents/Frameworks/libwebp*.dylib; do
+          if [ -f "$webplib" ]; then
+            echo "OK: $(basename $webplib) is present"
+            webp_found=1
+          fi
+        done
+        if [ "$webp_found" -eq 0 ]; then
+          echo "ERROR: libwebp libraries are MISSING!"
+          echo "Checking webp installation..."
+          ls -la "$HOMEBREW_PREFIX/opt/webp/lib/" 2>/dev/null || echo "webp not found at $HOMEBREW_PREFIX/opt/webp"
+          exit 1
+        fi
 
     - name: Create release packages
       run: |
-        # Version info
-        VERSION="0.3.19"
+        VERSION="0.3.19.1"
         ARCH=$(uname -m)
-
-        # Create README for daemon
-        cat > README-DAEMON.txt << 'EOF'
-        Bitok v0.3.19 - macOS Daemon
-        ============================
-
-        QUICK START
-        -----------
-        1. Extract the archive:
-           tar -xzf bitokd-*.tar.gz
-           cd bitokd-*
-
-        2. Run daemon:
-           ./bitokd -daemon
-
-        3. Check status:
-           ./bitokd getinfo
-
-        4. Stop daemon:
-           ./bitokd stop
-
-        PACKAGE CONTENTS
-        ----------------
-        - bitokd: The daemon binary
-        - libs/: Required OpenSSL libraries (bundled)
-        - README.txt: This file
-        - license.txt: MIT License
-
-        IMPORTANT
-        ---------
-        Keep the 'libs' folder in the same directory as 'bitokd'.
-        The daemon will automatically find the bundled libraries.
-
-        DATA LOCATION
-        -------------
-        Data directory: ~/Library/Application Support/Bitok/
-        Config: ~/Library/Application Support/Bitok/bitok.conf
-
-        VERIFY YOUR DOWNLOAD
-        ---------------------
-        Always verify checksums before running.
-
-        Target: macOS 11.0+
-        License: MIT
-        EOF
-
-        # Create README for GUI
-        cat > README-GUI.txt << 'EOF'
-        Bitok v0.3.19 - macOS GUI Wallet
-        =================================
-
-        QUICK START
-        -----------
-        Option 1 - Run .app bundle:
-          1. Copy Bitok.app to /Applications
-          2. Open from Applications folder
-
-        Option 2 - Run binary directly:
-          ./bitok
-
-        DATA LOCATION
-        -------------
-        Wallet: ~/Library/Application Support/Bitok/wallet.dat
-
-        IMPORTANT: Backup wallet.dat regularly!
-
-        Target: macOS 11.0+
-        License: MIT
-        EOF
-
-        # Create daemon package directory with proper structure
+        
         DAEMON_DIR="bitokd-${VERSION}-macos-${ARCH}"
         mkdir -p "${DAEMON_DIR}/libs"
         cp bitokd "${DAEMON_DIR}/"
         cp libs/*.dylib "${DAEMON_DIR}/libs/"
-        cp README-DAEMON.txt "${DAEMON_DIR}/README.txt"
         cp license.txt "${DAEMON_DIR}/"
 
-        # Create daemon tarball with bundled libraries
         tar -czf "${DAEMON_DIR}.tar.gz" "${DAEMON_DIR}"
 
-        # Create GUI package directory
         GUI_DIR="bitok-${VERSION}-macos-${ARCH}"
         mkdir -p "${GUI_DIR}"
         cp -r Bitok.app "${GUI_DIR}/"
-        cp README-GUI.txt "${GUI_DIR}/README.txt"
         cp license.txt "${GUI_DIR}/"
 
-        # Create GUI tarball (with .app bundle)
         tar -czf "${GUI_DIR}.tar.gz" "${GUI_DIR}"
 
-        # Generate checksums
         shasum -a 256 "${DAEMON_DIR}.tar.gz" > "${DAEMON_DIR}.tar.gz.sha256"
         shasum -a 256 "${GUI_DIR}.tar.gz" > "${GUI_DIR}.tar.gz.sha256"
 
-        # Create master checksums file
-        cat > CHECKSUMS-MACOS.txt << EOF
-        Bitok v${VERSION} - macOS Release Checksums
-        ============================================
-
-        Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-        Platform: macOS 11.0+ (${ARCH})
-
-        Verify with:
-          shasum -a 256 -c CHECKSUMS-MACOS.txt
-
-        SHA-256 Checksums:
-        ==================
-
-        EOF
-
-        # Add checksums to master file
         shasum -a 256 ${DAEMON_DIR}.tar.gz >> CHECKSUMS-MACOS.txt
         shasum -a 256 ${GUI_DIR}.tar.gz >> CHECKSUMS-MACOS.txt
 
-        # Display results
         echo ""
         echo "========================================="
-        echo "✓ macOS Release Packages Created (${ARCH})"
+        echo "macOS Release Packages Created (${ARCH})"
         echo "========================================="
         ls -lh ${DAEMON_DIR}.tar.gz
         ls -lh ${GUI_DIR}.tar.gz
@@ -255,16 +461,16 @@ jobs:
       with:
         name: bitokd-macos-${{ matrix.arch }}
         path: |
-          bitokd-0.3.19-macos-*.tar.gz
-          bitokd-0.3.19-macos-*.tar.gz.sha256
+          bitokd-0.3.19.1-macos-*.tar.gz
+          bitokd-0.3.19.1-macos-*.tar.gz.sha256
 
     - name: Upload GUI package
       uses: actions/upload-artifact@v4
       with:
         name: bitok-macos-${{ matrix.arch }}
         path: |
-          bitok-0.3.19-macos-*.tar.gz
-          bitok-0.3.19-macos-*.tar.gz.sha256
+          bitok-0.3.19.1-macos-*.tar.gz
+          bitok-0.3.19.1-macos-*.tar.gz.sha256
 
     - name: Upload checksums
       uses: actions/upload-artifact@v4

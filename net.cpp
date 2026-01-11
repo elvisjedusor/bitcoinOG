@@ -75,6 +75,9 @@ bool ConnectSocket(const CAddress& addrConnect, SOCKET& hSocketRet)
 
     if (connect(hSocket, (struct sockaddr*)&sockaddr, sizeof(sockaddr)) == SOCKET_ERROR)
     {
+        int nErr = WSAGetLastError();
+        if (nErr != WSAEWOULDBLOCK && nErr != WSAEINPROGRESS && nErr != WSAEINTR)
+            printf("connect() failed: %s (error %d)\n", addrConnect.ToString().c_str(), nErr);
         closesocket(hSocket);
         return false;
     }
@@ -920,12 +923,30 @@ void ThreadOpenConnections2(void* parg)
 
             if (fSeedUsed && mapAddresses.size() > ARRAYLEN(pnSeed) + 100)
             {
-                // Disconnect seed nodes
+                // Disconnect seed nodes only after we have established non-seed connections
+                // and have had time to sync blocks from seeds
                 set<unsigned int> setSeed(pnSeed, pnSeed + ARRAYLEN(pnSeed));
                 static int64 nSeedDisconnected;
-                if (nSeedDisconnected == 0)
+                static int64 nSeedConnectTime;
+                if (nSeedConnectTime == 0)
+                    nSeedConnectTime = GetTime();
+
+                // Count non-seed connections that have completed version handshake
+                int nNonSeedConnections = 0;
+                CRITICAL_BLOCK(cs_vNodes)
+                    foreach(CNode* pnode, vNodes)
+                        if (!setSeed.count(pnode->addr.ip) && pnode->fSuccessfullyConnected)
+                            nNonSeedConnections++;
+
+                // Only disconnect seeds if we have at least 2 non-seed connections
+                // OR if 60 seconds have passed (to allow initial sync)
+                bool fCanDisconnectSeeds = (nNonSeedConnections >= 2) ||
+                                           (GetTime() - nSeedConnectTime > 60);
+
+                if (nSeedDisconnected == 0 && fCanDisconnectSeeds)
                 {
                     nSeedDisconnected = GetTime();
+                    printf("Disconnecting seed nodes (non-seed connections: %d)\n", nNonSeedConnections);
                     CRITICAL_BLOCK(cs_vNodes)
                         foreach(CNode* pnode, vNodes)
                             if (setSeed.count(pnode->addr.ip))
