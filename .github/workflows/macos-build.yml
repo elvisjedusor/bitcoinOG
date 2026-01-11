@@ -48,14 +48,77 @@ jobs:
         file bitok
         otool -L bitok
 
+    - name: Bundle dependencies
+      run: |
+        # Get Homebrew prefix
+        BREW_PREFIX=$(brew --prefix)
+
+        echo "=== Bundling OpenSSL libraries ==="
+        mkdir -p libs
+        cp "${BREW_PREFIX}/opt/openssl@3/lib/libssl.3.dylib" libs/
+        cp "${BREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib" libs/
+
+        echo "=== Checking wxWidgets dependencies ==="
+        # wxWidgets may have additional dependencies that need bundling
+        # We'll check what bitok links to and bundle those as well
+        otool -L bitok | grep -E "wx|boost" | awk '{print $1}' | while read lib; do
+          if [ -f "$lib" ]; then
+            echo "Bundling: $lib"
+            cp "$lib" libs/ 2>/dev/null || true
+          fi
+        done
+
+        # Fix library paths in the bundled libraries themselves
+        echo "=== Fixing bundled library IDs ==="
+        for lib in libs/*.dylib; do
+          if [ -f "$lib" ]; then
+            libname=$(basename "$lib")
+            echo "Fixing ID for: $libname"
+            install_name_tool -id "@rpath/$libname" "$lib" 2>/dev/null || true
+          fi
+        done
+
+        # Fix inter-library dependencies in bundled libs
+        install_name_tool -change "${BREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib" "@rpath/libcrypto.3.dylib" libs/libssl.3.dylib 2>/dev/null || true
+
+        # Fix paths in bitokd
+        echo "=== Fixing bitokd library references ==="
+        install_name_tool -change "${BREW_PREFIX}/opt/openssl@3/lib/libssl.3.dylib" "@rpath/libssl.3.dylib" bitokd 2>/dev/null || true
+        install_name_tool -change "${BREW_PREFIX}/opt/openssl@3/lib/libcrypto.3.dylib" "@rpath/libcrypto.3.dylib" bitokd 2>/dev/null || true
+
+        # Fix paths in bitok - handle all homebrew libraries
+        echo "=== Fixing bitok library references ==="
+        otool -L bitok | grep "${BREW_PREFIX}" | awk '{print $1}' | while read lib; do
+          libname=$(basename "$lib")
+          echo "  Rewriting: $lib -> @rpath/$libname"
+          install_name_tool -change "$lib" "@rpath/$libname" bitok 2>/dev/null || true
+        done
+
+        echo "=== Verifying bitokd dependencies ==="
+        otool -L bitokd
+
+        echo "=== Verifying bitok dependencies ==="
+        otool -L bitok
+
     - name: Strip binaries
       run: |
         strip bitokd
         strip bitok
+        strip libs/*.dylib
 
     - name: Create .app bundle
       run: |
         make -f makefile.osx bundle
+
+        # Bundle libraries with .app
+        mkdir -p Bitok.app/Contents/Frameworks
+        cp libs/*.dylib Bitok.app/Contents/Frameworks/
+
+        # Fix rpath in app bundle binary
+        install_name_tool -add_rpath "@executable_path/../Frameworks" Bitok.app/Contents/MacOS/bitok 2>/dev/null || true
+
+        echo "=== Verifying app bundle binary ==="
+        otool -L Bitok.app/Contents/MacOS/bitok
 
     - name: Create release packages
       run: |
@@ -70,14 +133,30 @@ jobs:
 
         QUICK START
         -----------
-        1. Run daemon:
+        1. Extract the archive:
+           tar -xzf bitokd-*.tar.gz
+           cd bitokd-*
+
+        2. Run daemon:
            ./bitokd -daemon
 
-        2. Check status:
+        3. Check status:
            ./bitokd getinfo
 
-        3. Stop daemon:
+        4. Stop daemon:
            ./bitokd stop
+
+        PACKAGE CONTENTS
+        ----------------
+        - bitokd: The daemon binary
+        - libs/: Required OpenSSL libraries (bundled)
+        - README.txt: This file
+        - license.txt: MIT License
+
+        IMPORTANT
+        ---------
+        Keep the 'libs' folder in the same directory as 'bitokd'.
+        The daemon will automatically find the bundled libraries.
 
         DATA LOCATION
         -------------
@@ -116,15 +195,30 @@ jobs:
         License: MIT
         EOF
 
-        # Create daemon tarball
-        tar -czf "bitokd-${VERSION}-macos-${ARCH}.tar.gz" bitokd README-DAEMON.txt license.txt
+        # Create daemon package directory with proper structure
+        DAEMON_DIR="bitokd-${VERSION}-macos-${ARCH}"
+        mkdir -p "${DAEMON_DIR}/libs"
+        cp bitokd "${DAEMON_DIR}/"
+        cp libs/*.dylib "${DAEMON_DIR}/libs/"
+        cp README-DAEMON.txt "${DAEMON_DIR}/README.txt"
+        cp license.txt "${DAEMON_DIR}/"
+
+        # Create daemon tarball with bundled libraries
+        tar -czf "${DAEMON_DIR}.tar.gz" "${DAEMON_DIR}"
+
+        # Create GUI package directory
+        GUI_DIR="bitok-${VERSION}-macos-${ARCH}"
+        mkdir -p "${GUI_DIR}"
+        cp -r Bitok.app "${GUI_DIR}/"
+        cp README-GUI.txt "${GUI_DIR}/README.txt"
+        cp license.txt "${GUI_DIR}/"
 
         # Create GUI tarball (with .app bundle)
-        tar -czf "bitok-${VERSION}-macos-${ARCH}.tar.gz" Bitok.app README-GUI.txt license.txt
+        tar -czf "${GUI_DIR}.tar.gz" "${GUI_DIR}"
 
         # Generate checksums
-        shasum -a 256 "bitokd-${VERSION}-macos-${ARCH}.tar.gz" > "bitokd-${VERSION}-macos-${ARCH}.tar.gz.sha256"
-        shasum -a 256 "bitok-${VERSION}-macos-${ARCH}.tar.gz" > "bitok-${VERSION}-macos-${ARCH}.tar.gz.sha256"
+        shasum -a 256 "${DAEMON_DIR}.tar.gz" > "${DAEMON_DIR}.tar.gz.sha256"
+        shasum -a 256 "${GUI_DIR}.tar.gz" > "${GUI_DIR}.tar.gz.sha256"
 
         # Create master checksums file
         cat > CHECKSUMS-MACOS.txt << EOF
@@ -143,16 +237,16 @@ jobs:
         EOF
 
         # Add checksums to master file
-        shasum -a 256 bitokd-${VERSION}-macos-${ARCH}.tar.gz >> CHECKSUMS-MACOS.txt
-        shasum -a 256 bitok-${VERSION}-macos-${ARCH}.tar.gz >> CHECKSUMS-MACOS.txt
+        shasum -a 256 ${DAEMON_DIR}.tar.gz >> CHECKSUMS-MACOS.txt
+        shasum -a 256 ${GUI_DIR}.tar.gz >> CHECKSUMS-MACOS.txt
 
         # Display results
         echo ""
         echo "========================================="
         echo "✓ macOS Release Packages Created (${ARCH})"
         echo "========================================="
-        ls -lh bitokd-${VERSION}-macos-${ARCH}.tar.gz
-        ls -lh bitok-${VERSION}-macos-${ARCH}.tar.gz
+        ls -lh ${DAEMON_DIR}.tar.gz
+        ls -lh ${GUI_DIR}.tar.gz
         echo ""
         cat CHECKSUMS-MACOS.txt
 

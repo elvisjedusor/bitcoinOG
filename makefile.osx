@@ -47,8 +47,10 @@ LIBPATHS = \
 # Libraries for daemon (no GUI)
 # Note: Modern Boost (1.69+) made boost_system/filesystem header-only
 # Try to link them if available, but don't fail if they're not found
+# Use static linking for Berkeley DB to avoid dynamic library path issues
+BDB_STATIC = $(HOMEBREW_PREFIX)/opt/berkeley-db@4/lib/libdb_cxx-4.8.a
 LIBS_DAEMON = \
-    -ldb_cxx-4.8 \
+    $(BDB_STATIC) \
     -lssl \
     -lcrypto \
     -lpthread
@@ -138,11 +140,24 @@ gui: bitok
 bitokd: directories $(OBJS_DAEMON)
 	$(CXX) $(CXXFLAGS) $(DEFS_DAEMON) -o $@ $(LIBPATHS) $(OBJS_DAEMON) $(LIBS_DAEMON)
 	@echo "bitokd built successfully"
+	@echo "Fixing dynamic library paths..."
+	@install_name_tool -change "$(HOMEBREW_PREFIX)/opt/openssl@3/lib/libssl.3.dylib" "@rpath/libssl.3.dylib" $@ 2>/dev/null || true
+	@install_name_tool -change "$(HOMEBREW_PREFIX)/opt/openssl@3/lib/libcrypto.3.dylib" "@rpath/libcrypto.3.dylib" $@ 2>/dev/null || true
+	@install_name_tool -add_rpath "@executable_path/libs" $@ 2>/dev/null || true
+	@install_name_tool -add_rpath "@executable_path" $@ 2>/dev/null || true
+	@install_name_tool -add_rpath "/usr/local/opt/openssl@3/lib" $@ 2>/dev/null || true
+	@install_name_tool -add_rpath "$(HOMEBREW_PREFIX)/opt/openssl@3/lib" $@ 2>/dev/null || true
 
 # GUI version (requires wxWidgets)
 bitok: directories $(OBJS_GUI)
 	$(CXX) $(CXXFLAGS) $(DEFS_GUI) -o $@ $(LIBPATHS) $(OBJS_GUI) $(LIBS_GUI)
 	@echo "bitok GUI built successfully"
+	@echo "Fixing dynamic library paths..."
+	@install_name_tool -change "$(HOMEBREW_PREFIX)/opt/openssl@3/lib/libssl.3.dylib" "@rpath/libssl.3.dylib" $@ 2>/dev/null || true
+	@install_name_tool -change "$(HOMEBREW_PREFIX)/opt/openssl@3/lib/libcrypto.3.dylib" "@rpath/libcrypto.3.dylib" $@ 2>/dev/null || true
+	@install_name_tool -add_rpath "@executable_path/../Frameworks" $@ 2>/dev/null || true
+	@install_name_tool -add_rpath "/usr/local/opt/openssl@3/lib" $@ 2>/dev/null || true
+	@install_name_tool -add_rpath "$(HOMEBREW_PREFIX)/opt/openssl@3/lib" $@ 2>/dev/null || true
 
 # Create object directories
 directories:
