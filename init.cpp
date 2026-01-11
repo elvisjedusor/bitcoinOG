@@ -672,9 +672,6 @@ bool AppInit(int argc, char* argv[])
     umask(077);
 #endif
 
-    InitSHA256();
-    yespower_init_dispatch();
-
     // Check if any argument is an RPC command (not starting with -)
     // RPC commands can appear after options like -datadir
     int rpcArgIndex = -1;
@@ -691,6 +688,8 @@ bool AppInit(int argc, char* argv[])
     if (!fCommandLine)
     {
         fDaemon = true;
+        InitSHA256();
+        yespower_init_dispatch();
     }
 
     if (fCommandLine)

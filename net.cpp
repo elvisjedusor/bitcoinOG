@@ -969,7 +969,7 @@ void ThreadOpenConnections2(void* parg)
         if (GetTime() - nLastCleanup > 60 * 60) // Every hour
         {
             nLastCleanup = GetTime();
-            int64 nCutoff = GetAdjustedTime() - 30 * 24 * 60 * 60; // 30 days
+            int64 nCutoff = GetAdjustedTime() - 12 * 60 * 60; // 12 hours
             vector<vector<unsigned char> > vToErase;
 
             foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses)
@@ -983,7 +983,7 @@ void ThreadOpenConnections2(void* parg)
 
             if (!vToErase.empty())
             {
-                printf("Cleaning up %d old peer addresses (older than 30 days)\n", (int)vToErase.size());
+                printf("Cleaning up %d old peer addresses (older than 12 hours)\n", (int)vToErase.size());
                 CAddrDB addrdb;
                 foreach(const vector<unsigned char>& key, vToErase)
                 {
