@@ -904,9 +904,11 @@ void ThreadOpenConnections2(void* parg)
                     addr.ip = pnSeed[i];
                     addr.port = htons(DEFAULT_PORT);
                     addr.nServices = NODE_NETWORK;
-                    addr.nTime = 0;
-                    printf("  Seed %d: %s\n", i, addr.ToString().c_str());
+                    addr.nTime = GetTime() - 3 * 60 * 60;
+                    printf("  Connecting to seed %d: %s\n", i, addr.ToString().c_str());
                     AddAddress(addr);
+                    OpenNetworkConnection(addr);
+                    Sleep(500);
                 }
                 fSeedUsed = true;
             }
