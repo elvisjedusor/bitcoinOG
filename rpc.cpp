@@ -341,7 +341,7 @@ double GetDifficulty()
     // minimum difficulty = 1.0.
     if (pindexBest == NULL)
         return 1.0;
-    int nShift = 256 - 32 - 31; // to fit in a uint
+    int nShift = 256 - 17 - 31;
     double dMinimum = (CBigNum().SetCompact(bnProofOfWorkLimit.GetCompact()) >> nShift).getuint();
     double dCurrently = (CBigNum().SetCompact(pindexBest->nBits) >> nShift).getuint();
     return dMinimum / dCurrently;
