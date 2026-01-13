@@ -316,10 +316,17 @@ CMainFrame::CMainFrame(wxWindow* parent) : CMainFrameBase(parent)
     m_listCtrl->SetFocus();
     ptaskbaricon = new CMyTaskBarIcon();
 #ifdef __WXMAC__
-    // Mac automatically moves wxID_EXIT, wxID_PREFERENCES and wxID_ABOUT
-    // to their standard places, leaving these menus empty.
-    GetMenuBar()->Remove(2); // remove Help menu
-    GetMenuBar()->Remove(0); // remove File menu
+    // On macOS, wxWidgets automatically moves certain menu items to the application menu:
+    // - wxID_EXIT (File > Exit) becomes "Quit" in app menu
+    // - wxID_PREFERENCES (Settings > Options) becomes "Preferences" in app menu
+    // - wxID_ABOUT (Help > About) becomes "About" in app menu
+    //
+    // We keep all menus visible because the Settings menu contains important items that
+    // don't auto-relocate: "Generate Coins" and "Your Receiving Addresses"
+    // Users need clear access to these mining controls.
+    //
+    // Note: Some items will appear in both the app menu and original menu, which is
+    // acceptable and follows standard macOS patterns for cross-platform apps.
 #endif
 
     // Init column headers
