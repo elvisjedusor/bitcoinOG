@@ -25,7 +25,35 @@ void ThreadRPCServer2(void* parg);
 typedef Value(*rpcfn_type)(const Array& params, bool fHelp);
 extern map<string, rpcfn_type> mapCallTable;
 
+bool ExtractAddress(const CScript& scriptPubKey, string& addressRet)
+{
+    addressRet.clear();
 
+    uint160 hash160;
+    if (ExtractHash160(scriptPubKey, hash160))
+    {
+        addressRet = Hash160ToAddress(hash160);
+        return true;
+    }
+
+    // P2PK: <pubkey> OP_CHECKSIG
+    // Compressed pubkey (33 bytes): 0x21 <33 bytes> 0xac
+    // Uncompressed pubkey (65 bytes): 0x41 <65 bytes> 0xac
+    if (scriptPubKey.size() == 35 && scriptPubKey[0] == 33 && scriptPubKey[34] == OP_CHECKSIG)
+    {
+        vector<unsigned char> vchPubKey(scriptPubKey.begin() + 1, scriptPubKey.begin() + 34);
+        addressRet = Hash160ToAddress(Hash160(vchPubKey));
+        return true;
+    }
+    if (scriptPubKey.size() == 67 && scriptPubKey[0] == 65 && scriptPubKey[66] == OP_CHECKSIG)
+    {
+        vector<unsigned char> vchPubKey(scriptPubKey.begin() + 1, scriptPubKey.begin() + 66);
+        addressRet = Hash160ToAddress(Hash160(vchPubKey));
+        return true;
+    }
+
+    return false;
+}
 
 
 
@@ -210,9 +238,9 @@ Value gettransaction(const Array& params, bool fHelp)
                     Object entry;
                     entry.push_back(Pair("category", "send"));
 
-                    uint160 hash160;
-                    if (ExtractHash160(txout.scriptPubKey, hash160))
-                        entry.push_back(Pair("address", Hash160ToAddress(hash160)));
+                    string strAddress;
+                    if (ExtractAddress(txout.scriptPubKey, strAddress))
+                        entry.push_back(Pair("address", strAddress));
 
                     entry.push_back(Pair("amount", (double)(-txout.nValue) / (double)COIN));
                     details.push_back(entry);
@@ -230,9 +258,9 @@ Value gettransaction(const Array& params, bool fHelp)
                     Object entry;
                     entry.push_back(Pair("category", wtx.IsCoinBase() ? "generate" : "receive"));
 
-                    uint160 hash160;
-                    if (ExtractHash160(txout.scriptPubKey, hash160))
-                        entry.push_back(Pair("address", Hash160ToAddress(hash160)));
+                    string strAddress;
+                    if (ExtractAddress(txout.scriptPubKey, strAddress))
+                        entry.push_back(Pair("address", strAddress));
 
                     entry.push_back(Pair("amount", (double)txout.nValue / (double)COIN));
                     details.push_back(entry);
@@ -277,9 +305,9 @@ Value gettransaction(const Array& params, bool fHelp)
             entry.push_back(Pair("value", (double)txout.nValue / (double)COIN));
             entry.push_back(Pair("n", i));
 
-            uint160 hash160;
-            if (ExtractHash160(txout.scriptPubKey, hash160))
-                entry.push_back(Pair("address", Hash160ToAddress(hash160)));
+            string strAddress;
+            if (ExtractAddress(txout.scriptPubKey, strAddress))
+                entry.push_back(Pair("address", strAddress));
 
             vout.push_back(entry);
         }
@@ -615,9 +643,7 @@ Value listtransactions(const Array& params, bool fHelp)
                             continue;
 
                         string strAddress;
-                        uint160 hash160;
-                        if (ExtractHash160(txout.scriptPubKey, hash160))
-                            strAddress = Hash160ToAddress(hash160);
+                        ExtractAddress(txout.scriptPubKey, strAddress);
 
                         Object entry;
                         entry.push_back(Pair("txid", strTxid));
@@ -642,9 +668,7 @@ Value listtransactions(const Array& params, bool fHelp)
                             continue;
 
                         string strAddress;
-                        uint160 hash160;
-                        if (ExtractHash160(txout.scriptPubKey, hash160))
-                            strAddress = Hash160ToAddress(hash160);
+                        ExtractAddress(txout.scriptPubKey, strAddress);
 
                         Object entry;
                         entry.push_back(Pair("txid", strTxid));
@@ -857,9 +881,9 @@ Value getrawtransaction(const Array& params, bool fHelp)
         entry.push_back(Pair("n", i));
         entry.push_back(Pair("scriptPubKey", HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end())));
 
-        uint160 hash160;
-        if (ExtractHash160(txout.scriptPubKey, hash160))
-            entry.push_back(Pair("address", Hash160ToAddress(hash160)));
+        string strAddress;
+        if (ExtractAddress(txout.scriptPubKey, strAddress))
+            entry.push_back(Pair("address", strAddress));
 
         vout.push_back(entry);
     }
@@ -939,9 +963,9 @@ Value listunspent(const Array& params, bool fHelp)
                 entry.push_back(Pair("txid", wtx.GetHash().ToString()));
                 entry.push_back(Pair("vout", i));
 
-                uint160 hash160;
-                if (ExtractHash160(txout.scriptPubKey, hash160))
-                    entry.push_back(Pair("address", Hash160ToAddress(hash160)));
+                string strAddress;
+                if (ExtractAddress(txout.scriptPubKey, strAddress))
+                    entry.push_back(Pair("address", strAddress));
 
                 entry.push_back(Pair("scriptPubKey", HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end())));
                 entry.push_back(Pair("amount", (double)txout.nValue / (double)COIN));
