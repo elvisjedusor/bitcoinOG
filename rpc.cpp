@@ -296,8 +296,8 @@ Value validateaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw runtime_error(
-            "validateaddress <bitcoinaddress>\n"
-            "Return information about <bitcoinaddress>.");
+            "validateaddress <bitokaddress>\n"
+            "Return information about <bitokaddress>.");
 
     string strAddress = params[0].get_str();
 
@@ -450,7 +450,7 @@ Value setlabel(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
-            "setlabel <bitcoinaddress> <label>\n"
+            "setlabel <bitokaddress> <label>\n"
             "Sets the label associated with the given address.");
 
     string strAddress = params[0].get_str();
@@ -467,7 +467,7 @@ Value getlabel(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw runtime_error(
-            "getlabel <bitcoinaddress>\n"
+            "getlabel <bitokaddress>\n"
             "Returns the label associated with the given address.");
 
     string strAddress = params[0].get_str();
@@ -517,7 +517,7 @@ Value sendtoaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 2 || params.size() > 4)
         throw runtime_error(
-            "sendtoaddress <bitcoinaddress> <amount> [comment] [comment-to]\n"
+            "sendtoaddress <bitokaddress> <amount> [comment] [comment-to]\n"
             "<amount> is a real and is rounded to the nearest 0.01");
 
     string strAddress = params[0].get_str();
@@ -669,8 +669,8 @@ Value getreceivedbyaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
-            "getreceivedbyaddress <bitcoinaddress> [minconf=1]\n"
-            "Returns the total amount received by <bitcoinaddress> in transactions with at least [minconf] confirmations.");
+            "getreceivedbyaddress <bitokaddress> [minconf=1]\n"
+            "Returns the total amount received by <bitokaddress> in transactions with at least [minconf] confirmations.");
 
     // Bitok address
     string strAddress = params[0].get_str();
