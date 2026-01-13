@@ -138,15 +138,14 @@ bitokd.exe -server -rpcuser=user -rpcpassword=pass
 
 Data directory: `%APPDATA%\Bitok\`
 
-Create configuration file: `%APPDATA%\Bitok\bitok.conf`
+All settings are passed via command line arguments - there is no configuration file.
 
-Example:
-
-```
-server=1
-rpcuser=yourusername
-rpcpassword=yourpassword
-rpcport=8332
+```cmd
+bitokd.exe -daemon
+bitokd.exe -gen
+bitokd.exe -rpcuser=yourusername -rpcpassword=yourpassword -server
+bitokd.exe -addnode=192.168.1.100
+bitokd.exe -?
 ```
 
 ---

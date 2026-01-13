@@ -154,8 +154,17 @@ make -f makefile.osx clean
 ## Notes
 
 - Data directory: `~/Library/Application Support/Bitok/`
-- Configuration file: `~/Library/Application Support/Bitok/bitok.conf`
 - Wallet file: `~/Library/Application Support/Bitok/wallet.dat`
+
+All settings are passed via command line arguments - there is no configuration file.
+
+```bash
+./bitokd -daemon                           # Run in background
+./bitokd -gen                              # Enable mining
+./bitokd -rpcuser=user -rpcpassword=pass   # Set RPC credentials
+./bitokd -addnode=192.168.1.100            # Connect to specific node
+./bitokd -?                                # Show all options
+```
 
 **IMPORTANT**: Back up your wallet.dat file regularly!
 

@@ -105,6 +105,11 @@ make -f makefile.unix gui
 ./bitokd stop                     # stop daemon
 ```
 
+**Note:** This is original Bitcoin v0.3.19 behavior - there is no config file. All settings must be passed via command line:
+```bash
+./bitokd -gen -addnode=1.2.3.4 -rpcuser=user -rpcpassword=pass
+```
+
 **RPC:**
 ```bash
 ./bitokd getinfo                  # node status

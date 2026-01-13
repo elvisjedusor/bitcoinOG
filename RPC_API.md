@@ -1823,7 +1823,7 @@ else:
 
 ### 1. Credential Management
 
-No config file. Pass credentials on command line:
+All settings are command-line only - there is no config file:
 
 ```bash
 # Strong credentials (32+ characters recommended)

@@ -186,22 +186,15 @@ The GUI provides a user-friendly interface for sending/receiving coins, viewing 
 
 ## Configuration
 
-You can create a configuration file at `~/.bitokd/bitokd.conf`:
+All settings are passed via command line arguments. There is no configuration file.
 
-```ini
-# Run as daemon
-daemon=1
-
-# Enable mining
-gen=0
-
-# RPC settings
-rpcuser=yourusername
-rpcpassword=yourpassword
-rpcport=8332
-
-# Network settings
-port=8333
+```bash
+./bitokd -daemon                           # Run in background
+./bitokd -gen                              # Enable mining
+./bitokd -rpcuser=user -rpcpassword=pass   # Set RPC credentials
+./bitokd -port=8333                        # Set network port
+./bitokd -addnode=192.168.1.100            # Connect to specific node
+./bitokd -?                                # Show all options
 ```
 
 ---
@@ -315,19 +308,13 @@ The daemon provides a **JSON-RPC 1.0** interface for programmatic access. This a
 
 ### Authentication
 
-RPC requests require HTTP Basic Authentication. Configure credentials via:
+RPC requests require HTTP Basic Authentication. Configure credentials via command line:
 
-**Command line:**
 ```bash
-./bitokd -rpcuser=myuser -rpcpassword=mypassword
+./bitokd -rpcuser=myuser -rpcpassword=mypassword -server
 ```
 
-**Configuration file** (`~/.bitokd/bitokd.conf`):
-```ini
-rpcuser=myuser
-rpcpassword=mypassword
-rpcport=8332
-```
+All settings must be passed as command line arguments - there is no configuration file.
 
 ### Request Format
 
