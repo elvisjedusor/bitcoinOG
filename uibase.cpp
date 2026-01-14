@@ -61,9 +61,11 @@ CMainFrameBase::CMainFrameBase( wxWindow* parent, wxWindowID id, const wxString&
 
 	m_toolBar->AddTool( wxID_BUTTONSEND, _("  Send Coins  "), wxBitmap( send20_xpm ), wxNullBitmap, wxITEM_NORMAL, _("Send coins to another address"), wxEmptyString );
 	m_toolBar->AddTool( wxID_BUTTONRECEIVE, _("  Address Book  "), wxBitmap( addressbook20_xpm ), wxNullBitmap, wxITEM_NORMAL, _("Manage your address book"), wxEmptyString );
+#ifdef __WXOSX__
 	m_toolBar->AddSeparator();
 	m_toolBar->AddTool( wxID_BUTTONGENERATECOINS, _("  Generate Coins  "), wxBitmap( mining20_xpm ), wxNullBitmap, wxITEM_CHECK, _("Start or stop mining coins"), wxEmptyString );
 	m_toolBar->AddTool( wxID_BUTTONSETTINGS, _("  Settings  "), wxBitmap( settings20_xpm ), wxNullBitmap, wxITEM_NORMAL, _("Configure mining threads and other options"), wxEmptyString );
+#endif
 	m_toolBar->Realize();
 
 	m_statusBar = this->CreateStatusBar( 1, wxST_SIZEGRIP|wxSB_SUNKEN, wxID_ANY );
@@ -211,9 +213,11 @@ CMainFrameBase::CMainFrameBase( wxWindow* parent, wxWindowID id, const wxString&
 	this->Connect( m_menuHelpAbout->GetId(), wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( CMainFrameBase::OnMenuHelpAbout ) );
 	this->Connect( wxID_BUTTONSEND, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( CMainFrameBase::OnButtonSend ) );
 	this->Connect( wxID_BUTTONRECEIVE, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( CMainFrameBase::OnButtonAddressBook ) );
+#ifdef __WXOSX__
 	this->Connect( wxID_BUTTONGENERATECOINS, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( CMainFrameBase::OnButtonGenerateCoins ) );
 	this->Connect( wxID_BUTTONGENERATECOINS, wxEVT_UPDATE_UI, wxUpdateUIEventHandler( CMainFrameBase::OnUpdateUIButtonGenerateCoins ) );
 	this->Connect( wxID_BUTTONSETTINGS, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( CMainFrameBase::OnButtonSettings ) );
+#endif
 	m_textCtrlAddress->Connect( wxEVT_KEY_DOWN, wxKeyEventHandler( CMainFrameBase::OnKeyDown ), NULL, this );
 	m_textCtrlAddress->Connect( wxEVT_LEFT_DOWN, wxMouseEventHandler( CMainFrameBase::OnMouseEventsAddress ), NULL, this );
 	m_textCtrlAddress->Connect( wxEVT_LEFT_UP, wxMouseEventHandler( CMainFrameBase::OnMouseEventsAddress ), NULL, this );
@@ -274,9 +278,11 @@ CMainFrameBase::~CMainFrameBase()
 	this->Disconnect( wxID_ANY, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( CMainFrameBase::OnMenuHelpAbout ) );
 	this->Disconnect( wxID_BUTTONSEND, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( CMainFrameBase::OnButtonSend ) );
 	this->Disconnect( wxID_BUTTONRECEIVE, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( CMainFrameBase::OnButtonAddressBook ) );
+#ifdef __WXOSX__
 	this->Disconnect( wxID_BUTTONGENERATECOINS, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( CMainFrameBase::OnButtonGenerateCoins ) );
 	this->Disconnect( wxID_BUTTONGENERATECOINS, wxEVT_UPDATE_UI, wxUpdateUIEventHandler( CMainFrameBase::OnUpdateUIButtonGenerateCoins ) );
 	this->Disconnect( wxID_BUTTONSETTINGS, wxEVT_COMMAND_TOOL_CLICKED, wxCommandEventHandler( CMainFrameBase::OnButtonSettings ) );
+#endif
 	m_textCtrlAddress->Disconnect( wxEVT_KEY_DOWN, wxKeyEventHandler( CMainFrameBase::OnKeyDown ), NULL, this );
 	m_textCtrlAddress->Disconnect( wxEVT_LEFT_DOWN, wxMouseEventHandler( CMainFrameBase::OnMouseEventsAddress ), NULL, this );
 	m_textCtrlAddress->Disconnect( wxEVT_LEFT_UP, wxMouseEventHandler( CMainFrameBase::OnMouseEventsAddress ), NULL, this );
