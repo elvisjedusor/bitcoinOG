@@ -6,6 +6,19 @@
 #include "sha.h"
 #include "crypto/sha256.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <pthread.h>
+#include <mach/thread_policy.h>
+#include <mach/thread_act.h>
+#include <sys/sysctl.h>
+#elif defined(__linux__)
+#include <pthread.h>
+#include <sched.h>
+#include <unistd.h>
+#endif
+
 
 
 
@@ -2872,6 +2885,41 @@ void BitcoinMiner()
         printf("\n");
     }
 
+    yespower_local_t local;
+    if (yespower_init_local(&local) != 0) {
+        printf("ERROR: Failed to initialize yespower local context\n");
+        return;
+    }
+
+    static int thread_id = 0;
+    int tid;
+    {
+        static CCriticalSection cs_thread_id;
+        CRITICAL_BLOCK(cs_thread_id)
+            tid = thread_id++;
+    }
+
+#ifdef _WIN32
+    DWORD_PTR numCpus = 0;
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&sysinfo);
+    numCpus = sysinfo.dwNumberOfProcessors;
+    if (numCpus > 0) {
+        DWORD_PTR mask = (DWORD_PTR)1 << (tid % numCpus);
+        SetThreadAffinityMask(GetCurrentThread(), mask);
+    }
+#elif defined(__APPLE__)
+    thread_affinity_policy_data_t policy = { tid };
+    thread_policy_set(pthread_mach_thread_np(pthread_self()),
+                      THREAD_AFFINITY_POLICY,
+                      (thread_policy_t)&policy, 1);
+#elif defined(__linux__)
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(tid % sysconf(_SC_NPROCESSORS_ONLN), &cpuset);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+#endif
+
     CKey key;
     key.MakeNewKey();
     CBigNum bnExtraNonce = 0;
@@ -2879,17 +2927,23 @@ void BitcoinMiner()
     {
         SetThreadPriority(THREAD_PRIORITY_LOWEST);
         Sleep(50);
-        if (fShutdown)
+        if (fShutdown) {
+            yespower_free_local(&local);
             return;
+        }
         if (!fSoloMining)
         {
             while (vNodes.empty())
             {
                 Sleep(1000);
-                if (fShutdown)
+                if (fShutdown) {
+                    yespower_free_local(&local);
                     return;
-                if (!fGenerateBitcoins)
+                }
+                if (!fGenerateBitcoins) {
+                    yespower_free_local(&local);
                     return;
+                }
             }
         }
 
@@ -2913,8 +2967,10 @@ void BitcoinMiner()
         // Create new block
         //
         auto_ptr<CBlock> pblock(new CBlock());
-        if (!pblock.get())
+        if (!pblock.get()) {
+            yespower_free_local(&local);
             return;
+        }
 
         // Add our coinbase tx as first transaction
         pblock->vtx.push_back(txNew);
@@ -3000,11 +3056,13 @@ void BitcoinMiner()
         uint256 hash;
         loop
         {
-            if (fShutdown || !fGenerateBitcoins)
+            if (fShutdown || !fGenerateBitcoins) {
+                yespower_free_local(&local);
                 return;
+            }
 
             pblock->nNonce = tmp.block.nNonce;
-            hash = pblock->GetPoWHash();
+            hash = pblock->GetPoWHash(&local);
 
             if (hash <= hashTarget)
             {
@@ -3027,8 +3085,10 @@ void BitcoinMiner()
                 {
                     if (pindexPrev == pindexBest)
                     {
-                        if (!AddKey(key))
+                        if (!AddKey(key)) {
+                            yespower_free_local(&local);
                             return;
+                        }
                         key.MakeNewKey();
 
                         CRITICAL_BLOCK(cs_mapRequestCount)
@@ -3131,8 +3191,10 @@ void BitcoinMiner()
                             for (int i = 0; i < 10; i++)
                             {
                                 Sleep(1000);
-                                if (fShutdown)
+                                if (fShutdown) {
+                                    yespower_free_local(&local);
                                     return;
+                                }
                             }
                         }
                         while (pindexTmp != pindexBest);
@@ -3144,6 +3206,8 @@ void BitcoinMiner()
             }
         }
     }
+
+    yespower_free_local(&local);
 }
 
 

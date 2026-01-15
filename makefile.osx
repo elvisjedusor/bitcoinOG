@@ -17,7 +17,8 @@ ARCH_FLAGS = $(foreach arch,$(ARCH),-arch $(arch))
 # Compiler flags
 # For native builds: make ARCH="arm64" or make ARCH="x86_64" enables -march=native
 # For universal binaries: make ARCH="arm64 x86_64" (default, no -march)
-CXXFLAGS = -std=c++11 -O2 -Wno-invalid-offsetof -Wformat -Wno-deprecated-declarations
+# Using -O3 for maximum performance, -fomit-frame-pointer for extra register
+CXXFLAGS = -std=c++11 -O3 -fomit-frame-pointer -Wno-invalid-offsetof -Wformat -Wno-deprecated-declarations
 CXXFLAGS += -mmacosx-version-min=11.0 $(ARCH_FLAGS)
 
 # Enable native CPU optimizations for single-arch builds
@@ -197,7 +198,8 @@ obj/crypto/sha256_shani.o: crypto/sha256_shani.cpp crypto/sha256.h
 # For universal binaries: Uses baseline optimizations for compatibility
 # Override with: make YESPOWER_ARCH=x86-64-v3 (for distribution binaries)
 YESPOWER_ARCH ?= $(if $(NATIVE_OPTS),native,)
-YESPOWER_FLAGS = -O3 -funroll-loops $(if $(YESPOWER_ARCH),-march=$(YESPOWER_ARCH))
+# Aggressive optimization flags for maximum performance
+YESPOWER_FLAGS = -O3 -funroll-loops -fomit-frame-pointer -ftree-vectorize $(if $(YESPOWER_ARCH),-march=$(YESPOWER_ARCH))
 
 obj/yespower/yespower-opt.o: yespower-opt.c yespower.h yespower-platform.c sha256.h sysendian.h insecure_memzero.h
 	$(CC) -c $(YESPOWER_FLAGS) $(DEFS) $(INCLUDEPATHS) $(ARCH_FLAGS) -o $@ $<

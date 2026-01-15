@@ -35,6 +35,11 @@ jobs:
 
     - name: Build native binaries
       run: |
+        echo "=== Building with mining optimizations ==="
+        echo "Compiler: -O3 -fomit-frame-pointer -march=native"
+        echo "Yespower: -O3 -funroll-loops -ftree-vectorize"
+        echo "Features: Pre-allocated contexts, CPU affinity"
+        echo ""
         make -f makefile.osx clean
         make -f makefile.osx all
 

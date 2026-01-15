@@ -934,6 +934,11 @@ public:
         return YespowerHash(BEGIN(nVersion), END(nNonce));
     }
 
+    uint256 GetPoWHash(yespower_local_t* local) const
+    {
+        return YespowerHashWithLocal(local, BEGIN(nVersion), END(nNonce));
+    }
+
 
     uint256 BuildMerkleTree() const
     {

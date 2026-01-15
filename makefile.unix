@@ -6,7 +6,8 @@
 
 CXX ?= g++
 # AUTO-OPTIMIZED: -march=native enables all CPU features (AVX2, SSE4.1, etc)
-CXXFLAGS = -std=c++11 -O2 -march=native -Wno-invalid-offsetof -Wformat -Wno-deprecated-declarations
+# Using -O3 for maximum performance, -fomit-frame-pointer for extra register
+CXXFLAGS = -std=c++11 -O3 -march=native -fomit-frame-pointer -Wno-invalid-offsetof -Wformat -Wno-deprecated-declarations
 
 # wxWidgets configuration (for GUI builds)
 WXCONFIG ?= wx-config
@@ -160,7 +161,13 @@ obj/json_spirit_writer.o: json/json_spirit_writer.cpp
 # For distribution binaries: override with YESPOWER_ARCH=x86-64-v3 (works on most CPUs 2015+)
 # For old CPUs: override with YESPOWER_ARCH=x86-64 (maximum compatibility)
 YESPOWER_ARCH ?= native
-YESPOWER_FLAGS = -O3 -funroll-loops -march=$(YESPOWER_ARCH)
+# Aggressive optimization flags for maximum performance
+# -O3: Maximum optimization
+# -funroll-loops: Unroll loops for better performance
+# -fomit-frame-pointer: Free up another register for better code generation
+# -ftree-vectorize: Enable auto-vectorization (usually on by default with -O3)
+# -ffast-math: Faster floating point (safe for Yespower)
+YESPOWER_FLAGS = -O3 -funroll-loops -march=$(YESPOWER_ARCH) -fomit-frame-pointer -ftree-vectorize -ffast-math
 
 obj/yespower/yespower-opt.o: yespower-opt.c yespower.h yespower-platform.c sha256.h sysendian.h insecure_memzero.h
 	$(CC) -c $(YESPOWER_FLAGS) $(DEFS) $(INCLUDEPATHS) -o $@ $<
@@ -200,6 +207,7 @@ RELEASE_ARCH ?= x86-64-v3
 
 # Release compiler flags (optimized, no debug, portable)
 RELEASE_CXXFLAGS = -std=c++11 -O3 -march=$(RELEASE_ARCH) -mtune=generic \
+    -fomit-frame-pointer -ftree-vectorize \
     -Wno-invalid-offsetof -Wformat -Wno-deprecated-declarations \
     -fno-strict-aliasing -fPIC
 
@@ -252,8 +260,8 @@ OBJS_RELEASE_GUI = \
     obj/release-gui/yespower/sha256-yp.o \
     obj/release-gui/yespower/yespower_dispatch.o
 
-# Yespower release flags (portable)
-YESPOWER_RELEASE_FLAGS = -O3 -funroll-loops -march=$(RELEASE_ARCH) -mtune=generic
+# Yespower release flags (portable with aggressive optimization)
+YESPOWER_RELEASE_FLAGS = -O3 -funroll-loops -march=$(RELEASE_ARCH) -mtune=generic -fomit-frame-pointer -ftree-vectorize -ffast-math
 
 # Create release directories
 release-directories:

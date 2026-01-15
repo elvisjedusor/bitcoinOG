@@ -52,6 +52,19 @@ inline uint256 YespowerHash(const void* pbegin, const void* pend)
     return result;
 }
 
+inline uint256 YespowerHashWithLocal(yespower_local_t* local, const void* pbegin, const void* pend)
+{
+    uint256 result;
+    size_t len = (const char*)pend - (const char*)pbegin;
+    yespower_binary_t dst;
+    if (yespower(local, (const uint8_t*)pbegin, len, &yespower_params, &dst) == 0) {
+        memcpy(&result, dst.uc, 32);
+    } else {
+        memset(&result, 0xff, 32);
+    }
+    return result;
+}
+
 inline uint256 YespowerHashBlock(const void* pblock, size_t len)
 {
     uint256 result;

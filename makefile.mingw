@@ -32,7 +32,7 @@ endif
 # AUTO-OPTIMIZED: -march=native enables all CPU features (AVX2, SSE4.1, etc)
 # For distribution binaries: override with make MARCH=x86-64-v3
 MARCH ?= native
-CXXFLAGS = -std=c++11 -O2 -march=$(MARCH) -mthreads -w -Wno-invalid-offsetof -Wformat
+CXXFLAGS = -std=c++11 -O3 -march=$(MARCH) -fomit-frame-pointer -mthreads -w -Wno-invalid-offsetof -Wformat
 CXXFLAGS += -D_WIN32_WINNT=0x0A00  # Windows 10
 CXXFLAGS += -DWIN32 -D_WINDOWS -DNOPCH
 CXXFLAGS += -DOPENSSL_SUPPRESS_DEPRECATED
@@ -271,7 +271,7 @@ endif
 # For distribution binaries: override with YESPOWER_ARCH=x86-64-v3 (works on most CPUs 2015+)
 # For old CPUs: override with YESPOWER_ARCH=x86-64 (maximum compatibility)
 YESPOWER_ARCH ?= $(MARCH)
-YESPOWER_FLAGS = -O3 -funroll-loops -march=$(YESPOWER_ARCH)
+YESPOWER_FLAGS = -O3 -funroll-loops -march=$(YESPOWER_ARCH) -fomit-frame-pointer -ftree-vectorize -ffast-math
 
 obj/yespower/yespower-opt.o: yespower-opt.c yespower.h yespower-platform.c sha256.h sysendian.h insecure_memzero.h
 	$(CC) -c $(YESPOWER_FLAGS) $(DEFS) $(INCLUDEPATHS) -o $@ $<
