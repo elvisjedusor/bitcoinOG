@@ -591,10 +591,21 @@ void GetDataDir(char* pszDir)
             strlcpy(pszCachedDir, wxStandardPaths::Get().GetUserDataDir().c_str(), sizeof(pszCachedDir));
 #else
             // Use home directory for daemon
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+            // Windows: Use APPDATA (matches GUI behavior) or USERPROFILE
+            const char* pszHome = getenv("APPDATA");
+            if (pszHome == NULL || pszHome[0] == '\0')
+                pszHome = getenv("USERPROFILE");
+            if (pszHome == NULL || pszHome[0] == '\0')
+                pszHome = "C:\\";
+            snprintf(pszCachedDir, sizeof(pszCachedDir), "%s\\Bitok", pszHome);
+#else
+            // Unix/Linux: Use HOME
             const char* pszHome = getenv("HOME");
             if (pszHome == NULL || pszHome[0] == '\0')
                 pszHome = "/";
             snprintf(pszCachedDir, sizeof(pszCachedDir), "%s/.bitokd", pszHome);
+#endif
 #endif
             _mkdir(pszCachedDir);
         }
