@@ -125,6 +125,7 @@ inline BOOL PathRemoveFileSpecA(LPSTR pszPath) {
 #include <ifaddrs.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <dirent.h>
 #endif
 #ifdef __BSD__
 #include <netinet/in.h>

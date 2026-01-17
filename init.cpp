@@ -334,6 +334,7 @@ bool CMyApp::OnInit2()
             "  -connect=<ip>   \t  " + _("Connect only to the specified node\n") +
             "  -server         \t  " + _("Accept command line and JSON-RPC commands\n") +
             "  -daemon         \t  " + _("Run in the background as a daemon and accept commands\n") +
+            "  -recover        \t  " + _("Recover database and extract keys from corrupted wallet\n") +
             "  --help          \t  " + _("This help message\n");
 
 
@@ -376,6 +377,25 @@ bool CMyApp::OnInit2()
         txdb.LoadBlockIndex();
         PrintBlockTree();
         return false;
+    }
+
+    if (mapArgs.count("-recover"))
+    {
+        printf("Running database recovery...\n");
+        if (!RecoverDatabaseEnvironment())
+        {
+            wxMessageBox(_("Database recovery failed. You may need to delete database files manually."), "Bitok", wxOK | wxICON_ERROR);
+            return false;
+        }
+        printf("Database recovery completed.\n");
+
+        printf("Running wallet key recovery...\n");
+        if (!RecoverWalletKeys())
+        {
+            wxMessageBox(_("Wallet key recovery failed. Check console for details."), "Bitok", wxOK | wxICON_ERROR);
+            return false;
+        }
+        printf("Wallet key recovery completed. Continuing startup...\n");
     }
 
     //
@@ -732,6 +752,7 @@ bool AppInit(int argc, char* argv[])
             "  -connect=<ip>     " + _("Connect only to the specified node\n") +
             "  -server           " + _("Accept command line and JSON-RPC commands\n") +
             "  -daemon           " + _("Run in the background as a daemon and accept commands\n") +
+            "  -recover          " + _("Recover database and extract keys from corrupted wallet\n") +
             "  --help            " + _("This help message\n");
         fprintf(stderr, "%s", strUsage.c_str());
         return false;
@@ -761,6 +782,25 @@ bool AppInit(int argc, char* argv[])
         txdb.LoadBlockIndex();
         PrintBlockTree();
         return false;
+    }
+
+    if (mapArgs.count("-recover"))
+    {
+        printf("Running database recovery...\n");
+        if (!RecoverDatabaseEnvironment())
+        {
+            fprintf(stderr, "Database recovery failed. You may need to delete database files manually.\n");
+            return false;
+        }
+        printf("Database recovery completed.\n");
+
+        printf("Running wallet key recovery...\n");
+        if (!RecoverWalletKeys())
+        {
+            fprintf(stderr, "Wallet key recovery failed. Check output for details.\n");
+            return false;
+        }
+        printf("Wallet key recovery completed. Continuing startup...\n");
     }
 
     string strErrors;

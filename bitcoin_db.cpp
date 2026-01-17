@@ -26,6 +26,547 @@ static string GetBDBPath(const string& path)
 unsigned int nWalletDBUpdated;
 
 
+static void CleanupLogFiles(const string& strDataDir, const string& strLogDir)
+{
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+    WIN32_FIND_DATAA findData;
+    string strPattern = strLogDir + "\\log.*";
+    HANDLE hFind = FindFirstFileA(strPattern.c_str(), &findData);
+    if (hFind != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            string strFile = strLogDir + "\\" + findData.cFileName;
+            printf("  Removing: %s\n", strFile.c_str());
+            DeleteFileA(strFile.c_str());
+        } while (FindNextFileA(hFind, &findData));
+        FindClose(hFind);
+    }
+
+    strPattern = strLogDir + "\\__db.*";
+    hFind = FindFirstFileA(strPattern.c_str(), &findData);
+    if (hFind != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            string strFile = strLogDir + "\\" + findData.cFileName;
+            printf("  Removing: %s\n", strFile.c_str());
+            DeleteFileA(strFile.c_str());
+        } while (FindNextFileA(hFind, &findData));
+        FindClose(hFind);
+    }
+
+    strPattern = strDataDir + "\\__db.*";
+    hFind = FindFirstFileA(strPattern.c_str(), &findData);
+    if (hFind != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            string strFile = strDataDir + "\\" + findData.cFileName;
+            printf("  Removing: %s\n", strFile.c_str());
+            DeleteFileA(strFile.c_str());
+        } while (FindNextFileA(hFind, &findData));
+        FindClose(hFind);
+    }
+#else
+    DIR* dir = opendir(strLogDir.c_str());
+    if (dir)
+    {
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != NULL)
+        {
+            string strName = entry->d_name;
+            if (strName.substr(0, 4) == "log." || strName.substr(0, 5) == "__db.")
+            {
+                string strFile = strLogDir + "/" + strName;
+                printf("  Removing: %s\n", strFile.c_str());
+                unlink(strFile.c_str());
+            }
+        }
+        closedir(dir);
+    }
+
+    dir = opendir(strDataDir.c_str());
+    if (dir)
+    {
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != NULL)
+        {
+            string strName = entry->d_name;
+            if (strName.substr(0, 5) == "__db.")
+            {
+                string strFile = strDataDir + "/" + strName;
+                printf("  Removing: %s\n", strFile.c_str());
+                unlink(strFile.c_str());
+            }
+        }
+        closedir(dir);
+    }
+#endif
+}
+
+static void RemoveIncompatibleDatabases(const string& strDataDir)
+{
+    printf("Recovery: Removing incompatible database files (wallet.dat preserved)...\n");
+
+    string strAddrFile = strDataDir + "/addr.dat";
+    string strBlkIndexFile = strDataDir + "/blkindex.dat";
+
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+    for (size_t i = 0; i < strAddrFile.size(); i++)
+        if (strAddrFile[i] == '/') strAddrFile[i] = '\\';
+    for (size_t i = 0; i < strBlkIndexFile.size(); i++)
+        if (strBlkIndexFile[i] == '/') strBlkIndexFile[i] = '\\';
+
+    if (DeleteFileA(strAddrFile.c_str()))
+        printf("  Removed: %s\n", strAddrFile.c_str());
+
+    if (DeleteFileA(strBlkIndexFile.c_str()))
+        printf("  Removed: %s\n", strBlkIndexFile.c_str());
+#else
+    if (unlink(strAddrFile.c_str()) == 0)
+        printf("  Removed: %s\n", strAddrFile.c_str());
+
+    if (unlink(strBlkIndexFile.c_str()) == 0)
+        printf("  Removed: %s\n", strBlkIndexFile.c_str());
+#endif
+}
+
+static bool TryRecoverEnvironment(const string& strDataDir, const string& strLogDir)
+{
+    DbEnv dbenvRecover(0);
+
+    dbenvRecover.set_lg_dir(strLogDir.c_str());
+    dbenvRecover.set_lg_max(10000000);
+    dbenvRecover.set_lk_max_locks(10000);
+    dbenvRecover.set_lk_max_objects(10000);
+    dbenvRecover.set_flags(DB_AUTO_COMMIT, 1);
+
+    int ret = dbenvRecover.open(strDataDir.c_str(),
+                     DB_CREATE     |
+                     DB_INIT_LOCK  |
+                     DB_INIT_LOG   |
+                     DB_INIT_MPOOL |
+                     DB_INIT_TXN   |
+                     DB_RECOVER    |
+                     DB_PRIVATE,
+                     0);
+
+    if (ret != 0)
+        return false;
+
+    dbenvRecover.close(0);
+    return true;
+}
+
+bool RecoverDatabaseEnvironment()
+{
+    string strDataDir = GetDataDir();
+    string strLogDir = strDataDir + "/database";
+
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+    strDataDir = GetBDBPath(strDataDir);
+    strLogDir = GetBDBPath(strLogDir);
+#endif
+
+    printf("Recovery: Cleaning database environment in %s\n", strDataDir.c_str());
+    CleanupLogFiles(strDataDir, strLogDir);
+
+    RemoveIncompatibleDatabases(strDataDir);
+
+    printf("Recovery: Attempting environment recovery...\n");
+    if (TryRecoverEnvironment(strDataDir, strLogDir))
+    {
+        printf("Recovery: Success!\n");
+        printf("Note: Address database and block index will be rebuilt.\n");
+        return true;
+    }
+
+    printf("Recovery: Environment recovery failed, cleaning up...\n");
+    CleanupLogFiles(strDataDir, strLogDir);
+
+    if (TryRecoverEnvironment(strDataDir, strLogDir))
+    {
+        printf("Recovery: Success after cleanup!\n");
+        printf("Note: Address database and block index will be rebuilt.\n");
+        return true;
+    }
+
+    printf("Recovery: Failed. Manual intervention required.\n");
+    printf("Try deleting all files in %s except wallet.dat\n", strDataDir.c_str());
+    return false;
+}
+
+bool RecoverWalletKeys()
+{
+    string strDataDir = GetDataDir();
+    string strWalletFile = strDataDir + "/wallet.dat";
+    string strOldWalletFile = strDataDir + "/wallet_old.dat";
+
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+    for (size_t i = 0; i < strWalletFile.size(); i++)
+        if (strWalletFile[i] == '/') strWalletFile[i] = '\\';
+    for (size_t i = 0; i < strOldWalletFile.size(); i++)
+        if (strOldWalletFile[i] == '/') strOldWalletFile[i] = '\\';
+#endif
+
+    FILE* file = fopen(strWalletFile.c_str(), "rb");
+    if (!file)
+    {
+        printf("Wallet recovery: wallet.dat not found, nothing to recover\n");
+        return true;
+    }
+    fclose(file);
+
+    file = fopen(strOldWalletFile.c_str(), "rb");
+    if (file)
+    {
+        fclose(file);
+        printf("Wallet recovery: wallet_old.dat already exists\n");
+        printf("Please remove or rename it first to avoid data loss\n");
+        return false;
+    }
+
+    printf("Wallet recovery: Renaming wallet.dat to wallet_old.dat...\n");
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+    if (!MoveFileA(strWalletFile.c_str(), strOldWalletFile.c_str()))
+#else
+    if (rename(strWalletFile.c_str(), strOldWalletFile.c_str()) != 0)
+#endif
+    {
+        printf("Wallet recovery: Failed to rename wallet.dat\n");
+        return false;
+    }
+
+    printf("Wallet recovery: Extracting keys from wallet_old.dat...\n");
+
+    vector<pair<vector<unsigned char>, CPrivKey> > vRecoveredKeys;
+    vector<unsigned char> vchRecoveredDefaultKey;
+    map<string, string> mapRecoveredNames;
+
+    {
+        Db dbOldWallet(NULL, 0);
+
+        int ret = dbOldWallet.open(NULL, strOldWalletFile.c_str(), "main", DB_BTREE, DB_RDONLY, 0);
+        if (ret != 0)
+        {
+            printf("Wallet recovery: Normal open failed (error %d), trying raw key scan...\n", ret);
+
+            FILE* fWallet = fopen(strOldWalletFile.c_str(), "rb");
+            if (!fWallet)
+            {
+                printf("Wallet recovery: Cannot open wallet file for scanning\n");
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+                MoveFileA(strOldWalletFile.c_str(), strWalletFile.c_str());
+#else
+                rename(strOldWalletFile.c_str(), strWalletFile.c_str());
+#endif
+                return false;
+            }
+
+            fseek(fWallet, 0, SEEK_END);
+            long fileSize = ftell(fWallet);
+            fseek(fWallet, 0, SEEK_SET);
+
+            vector<unsigned char> fileData(fileSize);
+            size_t bytesRead = fread(&fileData[0], 1, fileSize, fWallet);
+            fclose(fWallet);
+
+            if (bytesRead != (size_t)fileSize)
+            {
+                printf("Wallet recovery: Failed to read wallet file\n");
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+                MoveFileA(strOldWalletFile.c_str(), strWalletFile.c_str());
+#else
+                rename(strOldWalletFile.c_str(), strWalletFile.c_str());
+#endif
+                return false;
+            }
+
+            printf("Wallet recovery: Scanning %ld bytes for private keys...\n", fileSize);
+
+            for (size_t i = 0; i + 300 < fileData.size(); i++)
+            {
+                if (fileData[i] == 0x30)
+                {
+                    try
+                    {
+                        size_t privKeyLen = 0;
+                        size_t headerLen = 2;
+
+                        if (fileData[i + 1] == 0x81)
+                        {
+                            privKeyLen = fileData[i + 2] + 3;
+                            headerLen = 3;
+                        }
+                        else if (fileData[i + 1] == 0x82)
+                        {
+                            privKeyLen = (fileData[i + 2] << 8) + fileData[i + 3] + 4;
+                            headerLen = 4;
+                        }
+                        else if (fileData[i + 1] >= 0x40 && fileData[i + 1] <= 0x7F)
+                        {
+                            privKeyLen = fileData[i + 1] + 2;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+
+                        if (privKeyLen < 100 || privKeyLen > 300) continue;
+                        if (i + privKeyLen > fileData.size()) continue;
+
+                        if (i + headerLen + 1 >= fileData.size()) continue;
+                        if (fileData[i + headerLen] != 0x02) continue;
+
+                        CPrivKey vchPrivKey(fileData.begin() + i, fileData.begin() + i + privKeyLen);
+
+                        CKey keyTest;
+                        if (keyTest.SetPrivKey(vchPrivKey))
+                        {
+                            vector<unsigned char> vchPubKey = keyTest.GetPubKey();
+
+                            if (vchPubKey.size() == 33 || vchPubKey.size() == 65)
+                            {
+                                bool duplicate = false;
+                                for (size_t k = 0; k < vRecoveredKeys.size(); k++)
+                                {
+                                    if (vRecoveredKeys[k].first == vchPubKey)
+                                    {
+                                        duplicate = true;
+                                        break;
+                                    }
+                                }
+                                if (!duplicate)
+                                {
+                                    vRecoveredKeys.push_back(make_pair(vchPubKey, vchPrivKey));
+                                    printf("  Recovered key: %s\n", HexStr(vchPubKey.begin(), vchPubKey.end(), true).substr(0, 16).c_str());
+                                }
+                            }
+                        }
+                    }
+                    catch (...) { }
+                }
+
+                if (fileData[i] == 0x03 && fileData[i+1] == 'k' && fileData[i+2] == 'e' && fileData[i+3] == 'y')
+                {
+                    try
+                    {
+                        size_t keyStart = i + 4;
+                        if (keyStart + 34 >= fileData.size()) continue;
+
+                        unsigned char pubKeyLen = fileData[keyStart];
+                        if (pubKeyLen != 33 && pubKeyLen != 65) continue;
+
+                        keyStart++;
+                        if (keyStart + pubKeyLen >= fileData.size()) continue;
+
+                        vector<unsigned char> vchPubKey(fileData.begin() + keyStart, fileData.begin() + keyStart + pubKeyLen);
+
+                        if (pubKeyLen == 33 && (vchPubKey[0] != 0x02 && vchPubKey[0] != 0x03)) continue;
+                        if (pubKeyLen == 65 && vchPubKey[0] != 0x04) continue;
+
+                        size_t privKeyStart = keyStart + pubKeyLen;
+                        if (privKeyStart + 2 >= fileData.size()) continue;
+
+                        size_t privKeyLen = 0;
+                        if (fileData[privKeyStart] == 0x30)
+                        {
+                            if (fileData[privKeyStart + 1] == 0x81)
+                            {
+                                privKeyLen = fileData[privKeyStart + 2] + 3;
+                            }
+                            else if (fileData[privKeyStart + 1] == 0x82)
+                            {
+                                privKeyLen = (fileData[privKeyStart + 2] << 8) + fileData[privKeyStart + 3] + 4;
+                            }
+                            else
+                            {
+                                privKeyLen = fileData[privKeyStart + 1] + 2;
+                            }
+                        }
+
+                        if (privKeyLen < 100 || privKeyLen > 300) continue;
+                        if (privKeyStart + privKeyLen > fileData.size()) continue;
+
+                        CPrivKey vchPrivKey(fileData.begin() + privKeyStart, fileData.begin() + privKeyStart + privKeyLen);
+
+                        CKey keyTest;
+                        if (keyTest.SetPrivKey(vchPrivKey))
+                        {
+                            vector<unsigned char> vchTestPubKey = keyTest.GetPubKey();
+                            if (vchTestPubKey == vchPubKey)
+                            {
+                                bool duplicate = false;
+                                for (size_t k = 0; k < vRecoveredKeys.size(); k++)
+                                {
+                                    if (vRecoveredKeys[k].first == vchPubKey)
+                                    {
+                                        duplicate = true;
+                                        break;
+                                    }
+                                }
+                                if (!duplicate)
+                                {
+                                    vRecoveredKeys.push_back(make_pair(vchPubKey, vchPrivKey));
+                                    printf("  Recovered key (matched): %s\n", HexStr(vchPubKey.begin(), vchPubKey.end(), true).substr(0, 16).c_str());
+                                }
+                            }
+                        }
+                    }
+                    catch (...) { }
+                }
+
+                if (fileData[i] == 0x0a && i + 11 < fileData.size() &&
+                    fileData[i+1] == 'd' && fileData[i+2] == 'e' && fileData[i+3] == 'f' &&
+                    fileData[i+4] == 'a' && fileData[i+5] == 'u' && fileData[i+6] == 'l' &&
+                    fileData[i+7] == 't' && fileData[i+8] == 'k' && fileData[i+9] == 'e' &&
+                    fileData[i+10] == 'y')
+                {
+                    try
+                    {
+                        size_t keyStart = i + 11;
+                        if (keyStart + 34 >= fileData.size()) continue;
+
+                        unsigned char pubKeyLen = fileData[keyStart];
+                        if (pubKeyLen != 33 && pubKeyLen != 65) continue;
+
+                        keyStart++;
+                        if (keyStart + pubKeyLen > fileData.size()) continue;
+
+                        vchRecoveredDefaultKey.assign(fileData.begin() + keyStart, fileData.begin() + keyStart + pubKeyLen);
+                    }
+                    catch (...) { }
+                }
+            }
+        }
+        else
+        {
+            Dbc* pcursor = NULL;
+            ret = dbOldWallet.cursor(NULL, &pcursor, 0);
+            if (ret != 0 || pcursor == NULL)
+            {
+                printf("Wallet recovery: Failed to create cursor\n");
+                dbOldWallet.close(0);
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+                MoveFileA(strOldWalletFile.c_str(), strWalletFile.c_str());
+#else
+                rename(strOldWalletFile.c_str(), strWalletFile.c_str());
+#endif
+                return false;
+            }
+
+            Dbt datKey;
+            Dbt datValue;
+            datKey.set_flags(DB_DBT_MALLOC);
+            datValue.set_flags(DB_DBT_MALLOC);
+
+            while ((ret = pcursor->get(&datKey, &datValue, DB_NEXT)) == 0)
+            {
+                CDataStream ssKey((char*)datKey.get_data(), (char*)datKey.get_data() + datKey.get_size(), SER_DISK);
+                CDataStream ssValue((char*)datValue.get_data(), (char*)datValue.get_data() + datValue.get_size(), SER_DISK);
+
+                string strType;
+                ssKey >> strType;
+
+                if (strType == "key" || strType == "wkey")
+                {
+                    vector<unsigned char> vchPubKey;
+                    ssKey >> vchPubKey;
+                    CPrivKey vchPrivKey;
+                    if (strType == "key")
+                        ssValue >> vchPrivKey;
+                    else
+                    {
+                        CWalletKey wkey;
+                        ssValue >> wkey;
+                        vchPrivKey = wkey.vchPrivKey;
+                    }
+                    vRecoveredKeys.push_back(make_pair(vchPubKey, vchPrivKey));
+                    printf("  Recovered key: %s\n", HexStr(vchPubKey.begin(), vchPubKey.end(), true).substr(0, 16).c_str());
+                }
+                else if (strType == "defaultkey")
+                {
+                    ssValue >> vchRecoveredDefaultKey;
+                }
+                else if (strType == "name")
+                {
+                    string strAddress;
+                    ssKey >> strAddress;
+                    string strName;
+                    ssValue >> strName;
+                    mapRecoveredNames[strAddress] = strName;
+                }
+
+                if (datKey.get_data()) { memset(datKey.get_data(), 0, datKey.get_size()); free(datKey.get_data()); }
+                if (datValue.get_data()) { memset(datValue.get_data(), 0, datValue.get_size()); free(datValue.get_data()); }
+                datKey.set_data(NULL);
+                datValue.set_data(NULL);
+            }
+
+            pcursor->close();
+            dbOldWallet.close(0);
+        }
+    }
+
+    printf("Wallet recovery: Found %d keys\n", (int)vRecoveredKeys.size());
+
+    if (vRecoveredKeys.empty())
+    {
+        printf("Wallet recovery: No keys found in old wallet\n");
+        printf("Wallet recovery: Restoring original wallet.dat\n");
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+        MoveFileA(strOldWalletFile.c_str(), strWalletFile.c_str());
+#else
+        rename(strOldWalletFile.c_str(), strWalletFile.c_str());
+#endif
+        return false;
+    }
+
+    printf("Wallet recovery: Creating new wallet.dat with recovered keys...\n");
+
+    {
+        CWalletDB walletdb("cr+");
+
+        for (size_t i = 0; i < vRecoveredKeys.size(); i++)
+        {
+            const vector<unsigned char>& vchPubKey = vRecoveredKeys[i].first;
+            const CPrivKey& vchPrivKey = vRecoveredKeys[i].second;
+
+            if (!walletdb.WriteKey(vchPubKey, vchPrivKey))
+            {
+                printf("Wallet recovery: Failed to write key %d\n", (int)i);
+            }
+            else
+            {
+                CRITICAL_BLOCK(cs_mapKeys)
+                {
+                    mapKeys[vchPubKey] = vchPrivKey;
+                    mapPubKeys[Hash160(vchPubKey)] = vchPubKey;
+                }
+            }
+        }
+
+        if (!vchRecoveredDefaultKey.empty())
+        {
+            walletdb.WriteDefaultKey(vchRecoveredDefaultKey);
+        }
+        else if (!vRecoveredKeys.empty())
+        {
+            walletdb.WriteDefaultKey(vRecoveredKeys[0].first);
+        }
+
+        for (map<string, string>::iterator it = mapRecoveredNames.begin(); it != mapRecoveredNames.end(); ++it)
+        {
+            walletdb.WriteName(it->first, it->second);
+        }
+    }
+
+    printf("Wallet recovery: Successfully recovered %d keys into new wallet.dat\n", (int)vRecoveredKeys.size());
+    printf("Wallet recovery: Old wallet saved as wallet_old.dat\n");
+
+    return true;
+}
 
 
 //
@@ -98,6 +639,18 @@ CDB::CDB(const char* pszFile, const char* pszMode) : pdb(NULL)
             dbenv.set_lk_max_objects(10000);
             dbenv.set_errfile(fopen(strErrorFile.c_str(), "a")); /// debug
             dbenv.set_flags(DB_AUTO_COMMIT, 1);
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+            ret = dbenv.open(strBDBDataDir.c_str(),
+                             DB_CREATE     |
+                             DB_INIT_LOCK  |
+                             DB_INIT_LOG   |
+                             DB_INIT_MPOOL |
+                             DB_INIT_TXN   |
+                             DB_THREAD     |
+                             DB_PRIVATE    |
+                             DB_RECOVER,
+                             0);
+#else
             ret = dbenv.open(strBDBDataDir.c_str(),
                              DB_CREATE     |
                              DB_INIT_LOCK  |
@@ -108,6 +661,7 @@ CDB::CDB(const char* pszFile, const char* pszMode) : pdb(NULL)
                              DB_PRIVATE    |
                              DB_RECOVER,
                              S_IRUSR | S_IWUSR);
+#endif
             if (ret > 0)
                 throw runtime_error(strprintf("CDB() : error %d opening database environment\n", ret));
             fDbEnvInit = true;
@@ -120,12 +674,21 @@ CDB::CDB(const char* pszFile, const char* pszMode) : pdb(NULL)
         {
             pdb = new Db(&dbenv, 0);
 
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+            ret = pdb->open(NULL,      // Txn pointer
+                            pszFile,   // Filename
+                            "main",    // Logical db name
+                            DB_BTREE,  // Database type
+                            nFlags,    // Flags
+                            0);
+#else
             ret = pdb->open(NULL,      // Txn pointer
                             pszFile,   // Filename
                             "main",    // Logical db name
                             DB_BTREE,  // Database type
                             nFlags,    // Flags
                             S_IRUSR | S_IWUSR);
+#endif
 
             if (ret > 0)
             {

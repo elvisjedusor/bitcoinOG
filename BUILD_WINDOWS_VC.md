@@ -72,6 +72,12 @@ This verifies vcpkg setup and shows which dependencies are missing.
 
 ### Berkeley DB version
 
+**Recommended:** Use BDB 4.8 for best compatibility (same as original Bitcoin):
+
+```cmd
+vcpkg install berkeleydb[core]:x64-windows-static --overlay-ports=.
+```
+
 vcpkg may install libdb48.lib or libdb53.lib. Check and update makefile.vc if needed:
 
 ```cmd
@@ -79,6 +85,8 @@ dir C:\vcpkg\installed\x64-windows-static\lib\libdb*.lib
 ```
 
 Edit `DB_LIB=libdb48.lib` in makefile.vc to match.
+
+**Note:** BDB 4.8 wallets are compatible with most Bitcoin-derived projects. Newer BDB versions may have API differences.
 
 ### wxWidgets version
 

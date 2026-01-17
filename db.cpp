@@ -98,6 +98,18 @@ CDB::CDB(const char* pszFile, const char* pszMode) : pdb(NULL)
             dbenv.set_lk_max_objects(10000);
             dbenv.set_errfile(fopen(strErrorFile.c_str(), "a")); /// debug
             dbenv.set_flags(DB_AUTO_COMMIT, 1);
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+            ret = dbenv.open(strBDBDataDir.c_str(),
+                             DB_CREATE     |
+                             DB_INIT_LOCK  |
+                             DB_INIT_LOG   |
+                             DB_INIT_MPOOL |
+                             DB_INIT_TXN   |
+                             DB_THREAD     |
+                             DB_PRIVATE    |
+                             DB_RECOVER,
+                             0);
+#else
             ret = dbenv.open(strBDBDataDir.c_str(),
                              DB_CREATE     |
                              DB_INIT_LOCK  |
@@ -108,6 +120,7 @@ CDB::CDB(const char* pszFile, const char* pszMode) : pdb(NULL)
                              DB_PRIVATE    |
                              DB_RECOVER,
                              S_IRUSR | S_IWUSR);
+#endif
             if (ret > 0)
                 throw runtime_error(strprintf("CDB() : error %d opening database environment\n", ret));
             fDbEnvInit = true;
@@ -120,12 +133,21 @@ CDB::CDB(const char* pszFile, const char* pszMode) : pdb(NULL)
         {
             pdb = new Db(&dbenv, 0);
 
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+            ret = pdb->open(NULL,      // Txn pointer
+                            pszFile,   // Filename
+                            "main",    // Logical db name
+                            DB_BTREE,  // Database type
+                            nFlags,    // Flags
+                            0);
+#else
             ret = pdb->open(NULL,      // Txn pointer
                             pszFile,   // Filename
                             "main",    // Logical db name
                             DB_BTREE,  // Database type
                             nFlags,    // Flags
                             S_IRUSR | S_IWUSR);
+#endif
 
             if (ret > 0)
             {

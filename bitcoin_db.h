@@ -24,6 +24,8 @@ extern DbEnv dbenv;
 
 
 extern void DBFlush(bool fShutdown);
+extern bool RecoverDatabaseEnvironment();
+extern bool RecoverWalletKeys();
 
 
 
