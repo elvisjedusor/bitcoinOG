@@ -1594,7 +1594,15 @@ bool ScanMessageStart(Stream& s)
 
 bool CheckDiskSpace(int64 nAdditionalBytes)
 {
-    uint64 nFreeBytesAvailable = boost::filesystem::space(GetDataDir()).available;
+    uint64 nFreeBytesAvailable = 0;
+
+#if defined(_WIN32) || defined(__MINGW32__)
+    ULARGE_INTEGER freeBytesAvailable;
+    if (GetDiskFreeSpaceExA(GetDataDir().c_str(), &freeBytesAvailable, NULL, NULL))
+        nFreeBytesAvailable = freeBytesAvailable.QuadPart;
+#else
+    nFreeBytesAvailable = boost::filesystem::space(GetDataDir()).available;
+#endif
 
     // Check for 15MB because database could create another 10MB log file at any time
     if (nFreeBytesAvailable < (int64)15000000 + nAdditionalBytes)

@@ -6,6 +6,22 @@
 
 void ThreadFlushWalletDB(void* parg);
 
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+static string GetBDBPath(const string& path)
+{
+    string result = path;
+    for (size_t i = 0; i < result.size(); i++)
+        if (result[i] == '/')
+            result[i] = '\\';
+    return result;
+}
+#else
+static string GetBDBPath(const string& path)
+{
+    return path;
+}
+#endif
+
 
 unsigned int nWalletDBUpdated;
 
@@ -60,17 +76,29 @@ CDB::CDB(const char* pszFile, const char* pszMode) : pdb(NULL)
                 return;
             string strDataDir = GetDataDir();
             string strLogDir = strDataDir + "/database";
-            _mkdir(strLogDir.c_str());
             string strErrorFile = strDataDir + "/db.log";
+
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+            string strDataDirWin = GetBDBPath(strDataDir);
+            string strLogDirWin = GetBDBPath(strLogDir);
+            _mkdir(strDataDirWin.c_str());
+            _mkdir(strLogDirWin.c_str());
+#else
+            _mkdir(strDataDir.c_str());
+            _mkdir(strLogDir.c_str());
+#endif
             printf("dbenv.open strLogDir=%s strErrorFile=%s\n", strLogDir.c_str(), strErrorFile.c_str());
 
-            dbenv.set_lg_dir(strLogDir.c_str());
+            string strBDBDataDir = GetBDBPath(strDataDir);
+            string strBDBLogDir = GetBDBPath(strLogDir);
+
+            dbenv.set_lg_dir(strBDBLogDir.c_str());
             dbenv.set_lg_max(10000000);
             dbenv.set_lk_max_locks(10000);
             dbenv.set_lk_max_objects(10000);
             dbenv.set_errfile(fopen(strErrorFile.c_str(), "a")); /// debug
             dbenv.set_flags(DB_AUTO_COMMIT, 1);
-            ret = dbenv.open(strDataDir.c_str(),
+            ret = dbenv.open(strBDBDataDir.c_str(),
                              DB_CREATE     |
                              DB_INIT_LOCK  |
                              DB_INIT_LOG   |
@@ -97,7 +125,7 @@ CDB::CDB(const char* pszFile, const char* pszMode) : pdb(NULL)
                             "main",    // Logical db name
                             DB_BTREE,  // Database type
                             nFlags,    // Flags
-                            0);
+                            S_IRUSR | S_IWUSR);
 
             if (ret > 0)
             {

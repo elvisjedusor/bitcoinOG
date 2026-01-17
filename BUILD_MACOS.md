@@ -1,203 +1,89 @@
-# Bitok - macOS Build Instructions
+# Building Bitok on macOS
 
-**Bitcoin v0.3.19 with GPU-resistant mining - Modern macOS build**
-
-This is Satoshi's original code from 2010, adapted to run on modern macOS with CPU-friendly proof-of-work.
-
-For mining details, see [BITOKPOW.md](BITOKPOW.md).
-For philosophy, see [MANIFESTO.md](MANIFESTO.md).
-
----
-
-Modern build instructions for macOS 11.0+ (Big Sur and later)
-Supports both Apple Silicon (arm64) and Intel (x86_64)
+Supports macOS 11.0+ (Big Sur and later), Apple Silicon (arm64) and Intel (x86_64).
 
 ## Prerequisites
 
-### 1. Install Xcode Command Line Tools
-
 ```bash
 xcode-select --install
-```
-
-### 2. Install Homebrew
-
-If you don't have Homebrew installed:
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-### 3. Install Dependencies
-
-```bash
 brew install boost berkeley-db@4 openssl@3 wxwidgets
 ```
 
 ## Building
 
-### Build the Daemon (bitokd)
-
 ```bash
-make -f makefile.osx bitokd
-```
-
-### Build the GUI Wallet (bitok)
-
-```bash
+# GUI wallet
 make -f makefile.osx bitok
-```
 
-### Build Both
+# Daemon only
+make -f makefile.osx bitokd
 
-```bash
+# Both
 make -f makefile.osx all
+
+# Clean
+make -f makefile.osx clean
 ```
 
 ## CPU Optimization
 
-Default builds create universal binaries (ARM + Intel). For native builds optimized for your CPU:
+Default build uses native architecture with `-march=native` for best performance.
 
 ```bash
-make -f makefile.osx ARCH="$(uname -m)" all  # Native build with -march=native
-```
+# Explicit architecture
+make -f makefile.osx ARCH=arm64 all      # Apple Silicon
+make -f makefile.osx ARCH=x86_64 all     # Intel
 
-**For distribution binaries:**
-```bash
-make -f makefile.osx all                           # Universal binary (default)
-make -f makefile.osx ARCH=x86_64 YESPOWER_ARCH=x86-64-v3 all  # Intel optimized
-make -f makefile.osx ARCH=arm64 all                # Apple Silicon only
+# Intel with AVX2 optimizations
+make -f makefile.osx ARCH=x86_64 YESPOWER_ARCH=x86-64-v3 all
 ```
 
 ## Installation
 
-Install daemon to /usr/local/bin:
-
 ```bash
+# Daemon to /usr/local/bin
 sudo make -f makefile.osx install
-```
 
-Install GUI wallet to /Applications:
-
-```bash
+# GUI binary to /usr/local/bin
 sudo make -f makefile.osx install-gui
+
+# GUI .app bundle to /Applications
+make -f makefile.osx bundle
+sudo cp -r Bitok.app /Applications/
 ```
 
 ## Running
 
-### Run the Daemon
+Data directory: `~/Library/Application Support/Bitok/`
 
 ```bash
-./bitokd
-```
+./bitokd                           # Daemon
+./bitokd -gen                      # Mine
+./bitokd -daemon                   # Background
+./bitokd -server -rpcuser=u -rpcpassword=p
 
-### Run the GUI Wallet
-
-```bash
-./bitok
-```
-
-Or after installation:
-
-```bash
-open /Applications/Bitok.app
+./bitok                            # GUI wallet
+open /Applications/Bitok.app       # After install-gui
 ```
 
 ## Troubleshooting
 
-### Architecture Issues
-
-The makefile builds universal binaries (arm64 + x86_64). If you need to build for a specific architecture:
-
-```bash
-# Apple Silicon only
-make -f makefile.osx ARCH=arm64
-
-# Intel only
-make -f makefile.osx ARCH=x86_64
-```
-
-### Dependency Path Issues
-
-If Homebrew installed dependencies in a non-standard location, you may need to set:
+### Dependency paths
 
 ```bash
 export HOMEBREW_PREFIX=$(brew --prefix)
 make -f makefile.osx
 ```
 
-### OpenSSL 3.x Compatibility
+### wxWidgets
 
-The code includes OpenSSL 3.x compatibility fixes. If you encounter OpenSSL-related errors, ensure you have OpenSSL 3.x installed:
+```bash
+wx-config --version   # Should show 3.2+
+wx-config --libs
+```
+
+### OpenSSL
 
 ```bash
 brew info openssl@3
 ```
-
-### wxWidgets Issues
-
-Ensure wxWidgets 3.2+ is installed with proper configuration:
-
-```bash
-wx-config --version  # Should show 3.2 or higher
-wx-config --libs     # Should show library paths
-```
-
-## Clean Build
-
-To remove all compiled objects and binaries:
-
-```bash
-make -f makefile.osx clean
-```
-
-## Notes
-
-- Data directory: `~/Library/Application Support/Bitok/`
-- Wallet file: `~/Library/Application Support/Bitok/wallet.dat`
-
-All settings are passed via command line arguments - there is no configuration file.
-
-```bash
-./bitokd -daemon                           # Run in background
-./bitokd -gen                              # Enable mining
-./bitokd -rpcuser=user -rpcpassword=pass   # Set RPC credentials
-./bitokd -addnode=192.168.1.100            # Connect to specific node
-./bitokd --help                            # Show all options
-```
-
-**IMPORTANT**: Back up your wallet.dat file regularly!
-
-## Building for Distribution
-
-### Create .app Bundle (GUI)
-
-```bash
-make -f makefile.osx bundle
-```
-
-This creates `Bitok.app` that can be copied to /Applications or distributed to other Macs.
-
-### Distribution Builds
-
-**Apple Silicon (M1/M2/M3):**
-```bash
-make -f makefile.osx clean
-make -f makefile.osx ARCH=arm64 all
-make -f makefile.osx bundle
-```
-
-**Intel:**
-```bash
-make -f makefile.osx clean
-make -f makefile.osx ARCH=x86_64 YESPOWER_ARCH=x86-64-v3 all
-make -f makefile.osx bundle
-```
-
-### What to Distribute
-
-- `bitokd` - Command-line daemon
-- `bitok` - GUI wallet (command-line executable)
-- `Bitok.app` - GUI wallet (.app bundle)
-
-ARM Mac users need to run `xattr -cr <file>` before first launch (see "For End Users" section above).

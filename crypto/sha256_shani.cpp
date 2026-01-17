@@ -12,6 +12,16 @@
 #include <cstring>
 #include <immintrin.h>
 
+#ifdef _MSC_VER
+#define SHANI_TARGET
+#define SSE41_TARGET
+#define SSSE3_TARGET
+#else
+#define SHANI_TARGET __attribute__((target("sha,sse4.1")))
+#define SSE41_TARGET __attribute__((target("ssse3,sse4.1")))
+#define SSSE3_TARGET __attribute__((target("ssse3")))
+#endif
+
 namespace {
 
 alignas(16) const uint8_t MASK[16] = {
@@ -29,7 +39,7 @@ alignas(16) const uint8_t INIT1[16] = {
     0x3a, 0xf5, 0x4f, 0xa5, 0x72, 0xf3, 0x6e, 0x3c
 };
 
-__attribute__((target("sha,sse4.1")))
+SHANI_TARGET
 inline void QuadRound(__m128i& state0, __m128i& state1, uint64_t k1, uint64_t k0)
 {
     const __m128i msg = _mm_set_epi64x(k1, k0);
@@ -37,7 +47,7 @@ inline void QuadRound(__m128i& state0, __m128i& state1, uint64_t k1, uint64_t k0
     state0 = _mm_sha256rnds2_epu32(state0, state1, _mm_shuffle_epi32(msg, 0x0e));
 }
 
-__attribute__((target("sha,sse4.1")))
+SHANI_TARGET
 inline void QuadRound(__m128i& state0, __m128i& state1, __m128i m, uint64_t k1, uint64_t k0)
 {
     const __m128i msg = _mm_add_epi32(m, _mm_set_epi64x(k1, k0));
@@ -45,26 +55,26 @@ inline void QuadRound(__m128i& state0, __m128i& state1, __m128i m, uint64_t k1, 
     state0 = _mm_sha256rnds2_epu32(state0, state1, _mm_shuffle_epi32(msg, 0x0e));
 }
 
-__attribute__((target("sha,sse4.1")))
+SHANI_TARGET
 inline void ShiftMessageA(__m128i& m0, __m128i m1)
 {
     m0 = _mm_sha256msg1_epu32(m0, m1);
 }
 
-__attribute__((target("sha,sse4.1")))
+SHANI_TARGET
 inline void ShiftMessageC(__m128i& m0, __m128i m1, __m128i& m2)
 {
     m2 = _mm_sha256msg2_epu32(_mm_add_epi32(m2, _mm_alignr_epi8(m1, m0, 4)), m1);
 }
 
-__attribute__((target("sha,sse4.1")))
+SHANI_TARGET
 inline void ShiftMessageB(__m128i& m0, __m128i m1, __m128i& m2)
 {
     ShiftMessageC(m0, m1, m2);
     ShiftMessageA(m0, m1);
 }
 
-__attribute__((target("ssse3,sse4.1")))
+SSE41_TARGET
 inline void Shuffle(__m128i& s0, __m128i& s1)
 {
     const __m128i t1 = _mm_shuffle_epi32(s0, 0xB1);
@@ -73,7 +83,7 @@ inline void Shuffle(__m128i& s0, __m128i& s1)
     s1 = _mm_blend_epi16(t2, t1, 0xF0);
 }
 
-__attribute__((target("ssse3,sse4.1")))
+SSE41_TARGET
 inline void Unshuffle(__m128i& s0, __m128i& s1)
 {
     const __m128i t1 = _mm_shuffle_epi32(s0, 0x1B);
@@ -82,13 +92,13 @@ inline void Unshuffle(__m128i& s0, __m128i& s1)
     s1 = _mm_alignr_epi8(t2, t1, 0x08);
 }
 
-__attribute__((target("ssse3")))
+SSSE3_TARGET
 inline __m128i Load(const unsigned char* in)
 {
     return _mm_shuffle_epi8(_mm_loadu_si128((const __m128i*)in), _mm_load_si128((const __m128i*)MASK));
 }
 
-__attribute__((target("ssse3")))
+SSSE3_TARGET
 inline void Save(unsigned char* out, __m128i s)
 {
     _mm_storeu_si128((__m128i*)out, _mm_shuffle_epi8(s, _mm_load_si128((const __m128i*)MASK)));
@@ -98,7 +108,7 @@ inline void Save(unsigned char* out, __m128i s)
 
 namespace sha256_x86_shani {
 
-__attribute__((target("sha,sse4.1,ssse3")))
+SHANI_TARGET
 void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks)
 {
     __m128i m0, m1, m2, m3, s0, s1, so0, so1;
@@ -157,7 +167,7 @@ void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks)
     _mm_storeu_si128((__m128i*)(s + 4), s1);
 }
 
-__attribute__((target("sha,sse4.1,ssse3")))
+SHANI_TARGET
 void TransformD64(unsigned char* out, const unsigned char* in)
 {
     __m128i m0, m1, m2, m3, s0, s1, so0, so1;

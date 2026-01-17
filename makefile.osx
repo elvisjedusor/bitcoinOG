@@ -6,6 +6,7 @@
 # Supports Apple Silicon (arm64) and Intel (x86_64)
 
 CXX ?= clang++
+CC ?= clang
 HOMEBREW_PREFIX ?= $(shell brew --prefix 2>/dev/null || echo /usr/local)
 
 # Architecture - detect native architecture automatically
@@ -15,16 +16,17 @@ ARCH ?= $(NATIVE_ARCH)
 ARCH_FLAGS = $(foreach arch,$(ARCH),-arch $(arch))
 
 # Compiler flags
-# For native builds: make ARCH="arm64" or make ARCH="x86_64" enables -march=native
-# For universal binaries: make ARCH="arm64 x86_64" (default, no -march)
 # Using -O3 for maximum performance, -fomit-frame-pointer for extra register
+# -march=native only enabled when building for same arch as host (no cross-compile)
 CXXFLAGS = -std=c++11 -O3 -fomit-frame-pointer -Wno-invalid-offsetof -Wformat -Wno-deprecated-declarations
 CXXFLAGS += -mmacosx-version-min=11.0 $(ARCH_FLAGS)
 
-# Enable native CPU optimizations for single-arch builds
+# Enable native CPU optimizations only for native single-arch builds
 ifeq ($(words $(ARCH)),1)
+ifeq ($(ARCH),$(NATIVE_ARCH))
     CXXFLAGS += -march=native
     NATIVE_OPTS = -march=native
+endif
 endif
 
 # wxWidgets configuration (for GUI builds)
@@ -49,7 +51,11 @@ LIBPATHS = \
 # Note: Modern Boost (1.69+) made boost_system/filesystem header-only
 # Try to link them if available, but don't fail if they're not found
 # Use static linking for Berkeley DB to avoid dynamic library path issues
-BDB_STATIC = $(HOMEBREW_PREFIX)/opt/berkeley-db@4/lib/libdb_cxx-4.8.a
+BDB_LIB_DIR = $(HOMEBREW_PREFIX)/opt/berkeley-db@4/lib
+BDB_STATIC = $(shell ls $(BDB_LIB_DIR)/libdb_cxx-*.a 2>/dev/null | head -1)
+ifeq ($(BDB_STATIC),)
+    BDB_STATIC = $(BDB_LIB_DIR)/libdb_cxx.a
+endif
 LIBS_DAEMON = \
     $(BDB_STATIC) \
     -lssl \
@@ -139,26 +145,25 @@ gui: bitok
 
 # Daemon version (no GUI)
 bitokd: directories $(OBJS_DAEMON)
-	$(CXX) $(CXXFLAGS) $(DEFS_DAEMON) -o $@ $(LIBPATHS) $(OBJS_DAEMON) $(LIBS_DAEMON)
+	$(CXX) $(CXXFLAGS) $(DEFS_DAEMON) -o $@ $(OBJS_DAEMON) $(LIBPATHS) $(LIBS_DAEMON) \
+		-Wl,-rpath,@executable_path \
+		-Wl,-rpath,@loader_path \
+		-Wl,-rpath,$(HOMEBREW_PREFIX)/opt/openssl@3/lib \
+		-Wl,-rpath,$(HOMEBREW_PREFIX)/lib \
+		-Wl,-rpath,/opt/homebrew/opt/openssl@3/lib \
+		-Wl,-rpath,/usr/local/opt/openssl@3/lib
 	@echo "bitokd built successfully"
-	@echo "Fixing dynamic library paths..."
-	@install_name_tool -change "$(HOMEBREW_PREFIX)/opt/openssl@3/lib/libssl.3.dylib" "@rpath/libssl.3.dylib" $@ 2>/dev/null || true
-	@install_name_tool -change "$(HOMEBREW_PREFIX)/opt/openssl@3/lib/libcrypto.3.dylib" "@rpath/libcrypto.3.dylib" $@ 2>/dev/null || true
-	@install_name_tool -add_rpath "@executable_path/libs" $@ 2>/dev/null || true
-	@install_name_tool -add_rpath "@executable_path" $@ 2>/dev/null || true
-	@install_name_tool -add_rpath "/usr/local/opt/openssl@3/lib" $@ 2>/dev/null || true
-	@install_name_tool -add_rpath "$(HOMEBREW_PREFIX)/opt/openssl@3/lib" $@ 2>/dev/null || true
 
 # GUI version (requires wxWidgets)
 bitok: directories $(OBJS_GUI)
-	$(CXX) $(CXXFLAGS) $(DEFS_GUI) -o $@ $(LIBPATHS) $(OBJS_GUI) $(LIBS_GUI)
+	$(CXX) $(CXXFLAGS) $(DEFS_GUI) -o $@ $(OBJS_GUI) $(LIBPATHS) $(LIBS_GUI) \
+		-Wl,-rpath,@executable_path \
+		-Wl,-rpath,@loader_path \
+		-Wl,-rpath,$(HOMEBREW_PREFIX)/opt/openssl@3/lib \
+		-Wl,-rpath,$(HOMEBREW_PREFIX)/lib \
+		-Wl,-rpath,/opt/homebrew/opt/openssl@3/lib \
+		-Wl,-rpath,/usr/local/opt/openssl@3/lib
 	@echo "bitok GUI built successfully"
-	@echo "Fixing dynamic library paths..."
-	@install_name_tool -change "$(HOMEBREW_PREFIX)/opt/openssl@3/lib/libssl.3.dylib" "@rpath/libssl.3.dylib" $@ 2>/dev/null || true
-	@install_name_tool -change "$(HOMEBREW_PREFIX)/opt/openssl@3/lib/libcrypto.3.dylib" "@rpath/libcrypto.3.dylib" $@ 2>/dev/null || true
-	@install_name_tool -add_rpath "@executable_path/../Frameworks" $@ 2>/dev/null || true
-	@install_name_tool -add_rpath "/usr/local/opt/openssl@3/lib" $@ 2>/dev/null || true
-	@install_name_tool -add_rpath "$(HOMEBREW_PREFIX)/opt/openssl@3/lib" $@ 2>/dev/null || true
 
 # Create object directories
 directories:

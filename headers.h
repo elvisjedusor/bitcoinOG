@@ -11,12 +11,11 @@
 #ifdef _WIN32_WINNT
 #undef _WIN32_WINNT
 #endif
-#define _WIN32_WINNT 0x0400
+#define _WIN32_WINNT 0x0601
 #ifdef _WIN32_IE
 #undef _WIN32_IE
 #endif
-#define _WIN32_IE 0x0400
-#define WIN32_LEAN_AND_MEAN 1
+#define _WIN32_IE 0x0601
 #define __STDC_LIMIT_MACROS // to enable UINT64_MAX from stdint.h
 
 #if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
@@ -78,7 +77,9 @@
 #include <numeric>
 
 // Suppress Boost bind placeholder deprecation warning
+#ifndef BOOST_BIND_GLOBAL_PLACEHOLDERS
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
+#endif
 
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>

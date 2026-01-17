@@ -1,0 +1,428 @@
+# Copyright (c) 2009-2010 Satoshi Nakamoto
+# Distributed under the MIT/X11 software license, see the accompanying
+# file license.txt or http://www.opensource.org/licenses/mit-license.php.
+#
+# Bitok: MSVC/Visual Studio Makefile for NMAKE
+# Based on original Bitcoin 0.3.x makefile.vc structure
+#
+# Build with: nmake -f makefile.vc
+#
+# IMPORTANT: Use "x64 Native Tools Command Prompt for VS"
+#
+# Quick start:
+#   1. Install vcpkg and dependencies (see below)
+#   2. set VCPKG_ROOT=C:\vcpkg
+#   3. nmake -f makefile.vc check     (verify setup)
+#   4. nmake -f makefile.vc daemon    (build)
+
+# ============================================================================
+# VCPKG CONFIGURATION
+# ============================================================================
+# Override: set VCPKG_ROOT=C:\your\path before running nmake
+!IFNDEF VCPKG_ROOT
+VCPKG_ROOT=C:\vcpkg
+!ENDIF
+
+VCPKG_TRIPLET=x64-windows-static
+VCPKG_INSTALLED=$(VCPKG_ROOT)\installed\$(VCPKG_TRIPLET)
+
+# ============================================================================
+# TOOLS
+# ============================================================================
+CC=cl.exe
+CXX=cl.exe
+LINK=link.exe
+RC=rc.exe
+
+# ============================================================================
+# DIRECTORIES
+# ============================================================================
+OBJDIR=obj
+OBJDIR_DAEMON=$(OBJDIR)\nogui
+OBJDIR_GUI=$(OBJDIR)\gui
+OBJDIR_CRYPTO=$(OBJDIR)\crypto
+OBJDIR_YESPOWER=$(OBJDIR)\yespower
+OBJDIR_JSON=$(OBJDIR)\json
+
+# ============================================================================
+# COMPILER FLAGS
+# ============================================================================
+# Optimization flags
+OPTFLAGS=/O2 /Oi /GL
+
+# Warning and standard flags
+WARNFLAGS=/W3 /wd4244 /wd4267 /wd4805 /wd4018
+
+# C++ standard
+CXXSTDFLAGS=/std:c++14 /EHsc /Zc:__cplusplus
+
+# C standard (no C++ flags)
+CSTDFLAGS=/TC
+
+# Runtime library: /MT = static CRT (no DLL dependencies)
+RTFLAGS=/MT
+
+# Platform defines
+DEFS=/DWIN32 /D_WINDOWS /DNOPCH
+DEFS=$(DEFS) /D_WIN32_WINNT=0x0A00
+DEFS=$(DEFS) /D_CRT_SECURE_NO_WARNINGS
+DEFS=$(DEFS) /D_WINSOCK_DEPRECATED_NO_WARNINGS
+DEFS=$(DEFS) /DOPENSSL_SUPPRESS_DEPRECATED
+DEFS=$(DEFS) /D_FILE_OFFSET_BITS=64
+DEFS=$(DEFS) /DBOOST_ALL_NO_LIB
+DEFS=$(DEFS) /DBOOST_BIND_GLOBAL_PLACEHOLDERS
+
+# Include paths
+INCLUDES=/I. /I"$(VCPKG_INSTALLED)\include"
+
+# Combined compiler flags for C++
+CXXFLAGS=/nologo $(OPTFLAGS) $(WARNFLAGS) $(CXXSTDFLAGS) $(RTFLAGS) $(DEFS) $(INCLUDES)
+CXXFLAGS_DAEMON=$(CXXFLAGS) /DwxUSE_GUI=0
+CXXFLAGS_GUI=$(CXXFLAGS) /DwxUSE_GUI=1 /D__WXMSW__ /DwxUSE_UNICODE=1
+
+# Combined compiler flags for C
+CFLAGS=/nologo $(OPTFLAGS) $(WARNFLAGS) $(CSTDFLAGS) $(RTFLAGS) $(DEFS) $(INCLUDES)
+
+# Crypto-specific defines
+CRYPTO_DEFS=/DENABLE_SSE41 /DENABLE_X86_SHANI
+
+# ============================================================================
+# LINKER FLAGS
+# ============================================================================
+LDFLAGS=/nologo /LTCG /OPT:REF /OPT:ICF /MACHINE:X64
+LDFLAGS=$(LDFLAGS) /DYNAMICBASE /NXCOMPAT
+LIBPATHS=/LIBPATH:"$(VCPKG_INSTALLED)\lib"
+
+# ============================================================================
+# LIBRARIES
+# ============================================================================
+# Windows SDK libraries
+LIBS_WIN=kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib
+LIBS_WIN=$(LIBS_WIN) advapi32.lib shell32.lib ole32.lib oleaut32.lib
+LIBS_WIN=$(LIBS_WIN) uuid.lib ws2_32.lib mswsock.lib shlwapi.lib
+LIBS_WIN=$(LIBS_WIN) crypt32.lib comctl32.lib rpcrt4.lib winmm.lib
+
+# Berkeley DB library
+# vcpkg typically installs as libdb48.lib or libdb53.lib
+# Change this if your version differs
+DB_LIB=libdb48.lib
+
+# OpenSSL libraries (vcpkg static names)
+SSL_LIBS=libssl.lib libcrypto.lib
+
+# zlib (required by OpenSSL)
+ZLIB_LIB=zlib.lib
+
+# Daemon libraries (no GUI)
+LIBS_DAEMON=$(DB_LIB) $(SSL_LIBS) $(ZLIB_LIB) $(LIBS_WIN)
+
+# wxWidgets libraries (vcpkg static names)
+# Adjust version (32=3.2, 33=3.3) as needed
+WX_VER=32
+WX_LIBS=wxmsw$(WX_VER)u_core.lib wxmsw$(WX_VER)u_adv.lib wxmsw$(WX_VER)u_html.lib
+WX_LIBS=$(WX_LIBS) wxbase$(WX_VER)u.lib wxbase$(WX_VER)u_net.lib
+# vcpkg wxWidgets uses system libraries instead of bundled wx* versions
+# These are pulled in by: vcpkg install expat liblzma libpng libjpeg-turbo tiff
+WX_DEPS_LIBS=libpng16.lib jpeg.lib tiff.lib libexpat.lib liblzma.lib
+WX_LIBS=$(WX_LIBS) $(WX_DEPS_LIBS)
+
+# GUI libraries
+LIBS_GUI=$(WX_LIBS) $(DB_LIB) $(SSL_LIBS) $(ZLIB_LIB) $(LIBS_WIN) uxtheme.lib
+
+# ============================================================================
+# HEADERS
+# ============================================================================
+HEADERS=headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h
+HEADERS=$(HEADERS) script.h bitcoin_db.h db_cxx_compat.h net.h irc.h main.h rpc.h
+HEADERS=$(HEADERS) uibase.h ui.h init.h sha.h yespower.h yespower_hash.h sysendian.h
+
+# ============================================================================
+# OBJECT FILES
+# ============================================================================
+# Crypto (optimized SHA256)
+OBJS_CRYPTO=$(OBJDIR_CRYPTO)\sha256.obj $(OBJDIR_CRYPTO)\sha256_shani.obj
+
+# Yespower (ASIC-resistant PoW)
+OBJS_YESPOWER=$(OBJDIR_YESPOWER)\yespower-opt.obj
+OBJS_YESPOWER=$(OBJS_YESPOWER) $(OBJDIR_YESPOWER)\sha256-yp.obj
+OBJS_YESPOWER=$(OBJS_YESPOWER) $(OBJDIR_YESPOWER)\yespower_dispatch.obj
+
+# JSON Spirit
+OBJS_JSON=$(OBJDIR_JSON)\json_spirit_reader.obj
+OBJS_JSON=$(OBJS_JSON) $(OBJDIR_JSON)\json_spirit_value.obj
+OBJS_JSON=$(OBJS_JSON) $(OBJDIR_JSON)\json_spirit_writer.obj
+
+# Daemon core objects
+OBJS_DAEMON_CORE=$(OBJDIR_DAEMON)\util.obj
+OBJS_DAEMON_CORE=$(OBJS_DAEMON_CORE) $(OBJDIR_DAEMON)\script.obj
+OBJS_DAEMON_CORE=$(OBJS_DAEMON_CORE) $(OBJDIR_DAEMON)\bitcoin_db.obj
+OBJS_DAEMON_CORE=$(OBJS_DAEMON_CORE) $(OBJDIR_DAEMON)\net.obj
+OBJS_DAEMON_CORE=$(OBJS_DAEMON_CORE) $(OBJDIR_DAEMON)\irc.obj
+OBJS_DAEMON_CORE=$(OBJS_DAEMON_CORE) $(OBJDIR_DAEMON)\main.obj
+OBJS_DAEMON_CORE=$(OBJS_DAEMON_CORE) $(OBJDIR_DAEMON)\rpc.obj
+OBJS_DAEMON_CORE=$(OBJS_DAEMON_CORE) $(OBJDIR_DAEMON)\init.obj
+OBJS_DAEMON_CORE=$(OBJS_DAEMON_CORE) $(OBJDIR)\sha.obj
+
+# All daemon objects
+OBJS_DAEMON=$(OBJS_DAEMON_CORE) $(OBJS_CRYPTO) $(OBJS_YESPOWER) $(OBJS_JSON)
+
+# GUI core objects
+OBJS_GUI_CORE=$(OBJDIR_GUI)\util.obj
+OBJS_GUI_CORE=$(OBJS_GUI_CORE) $(OBJDIR_GUI)\script.obj
+OBJS_GUI_CORE=$(OBJS_GUI_CORE) $(OBJDIR_GUI)\bitcoin_db.obj
+OBJS_GUI_CORE=$(OBJS_GUI_CORE) $(OBJDIR_GUI)\net.obj
+OBJS_GUI_CORE=$(OBJS_GUI_CORE) $(OBJDIR_GUI)\irc.obj
+OBJS_GUI_CORE=$(OBJS_GUI_CORE) $(OBJDIR_GUI)\main.obj
+OBJS_GUI_CORE=$(OBJS_GUI_CORE) $(OBJDIR_GUI)\rpc.obj
+OBJS_GUI_CORE=$(OBJS_GUI_CORE) $(OBJDIR_GUI)\init.obj
+OBJS_GUI_CORE=$(OBJS_GUI_CORE) $(OBJDIR_GUI)\ui.obj
+OBJS_GUI_CORE=$(OBJS_GUI_CORE) $(OBJDIR_GUI)\uibase.obj
+OBJS_GUI_CORE=$(OBJS_GUI_CORE) $(OBJDIR)\sha.obj
+
+# All GUI objects
+OBJS_GUI=$(OBJS_GUI_CORE) $(OBJS_CRYPTO) $(OBJS_YESPOWER) $(OBJS_JSON) $(OBJDIR)\ui_res.res
+
+# ============================================================================
+# TARGETS
+# ============================================================================
+all: daemon
+
+daemon: bitokd.exe
+
+gui: bitok.exe
+
+both: bitokd.exe bitok.exe
+
+# ============================================================================
+# CHECK TARGET - Verify build environment
+# ============================================================================
+check:
+	@echo.
+	@echo ============================================
+	@echo Checking Build Environment
+	@echo ============================================
+	@echo.
+	@echo VCPKG_ROOT: $(VCPKG_ROOT)
+	@echo VCPKG_TRIPLET: $(VCPKG_TRIPLET)
+	@echo.
+	@echo Checking vcpkg directory...
+	@if not exist "$(VCPKG_ROOT)" ( echo ERROR: VCPKG_ROOT not found: $(VCPKG_ROOT) & echo Set it with: set VCPKG_ROOT=C:\path\to\vcpkg & exit /b 1 )
+	@echo   OK: $(VCPKG_ROOT) exists
+	@echo.
+	@echo Checking installed triplet...
+	@if not exist "$(VCPKG_INSTALLED)" ( echo ERROR: Triplet not installed: $(VCPKG_TRIPLET) & echo Run: vcpkg install berkeleydb:$(VCPKG_TRIPLET) openssl:$(VCPKG_TRIPLET) & exit /b 1 )
+	@echo   OK: $(VCPKG_TRIPLET) installed
+	@echo.
+	@echo Checking include directory...
+	@if not exist "$(VCPKG_INSTALLED)\include" ( echo ERROR: Include dir missing & exit /b 1 )
+	@echo   OK: Include directory exists
+	@echo.
+	@echo Checking lib directory...
+	@if not exist "$(VCPKG_INSTALLED)\lib" ( echo ERROR: Lib dir missing & exit /b 1 )
+	@echo   OK: Lib directory exists
+	@echo.
+	@echo Checking Berkeley DB...
+	@if exist "$(VCPKG_INSTALLED)\lib\libdb48.lib" ( echo   OK: libdb48.lib found ) else ( if exist "$(VCPKG_INSTALLED)\lib\libdb53.lib" ( echo   OK: libdb53.lib found - UPDATE DB_LIB in makefile! ) else ( echo   WARNING: Berkeley DB lib not found - install with: vcpkg install berkeleydb:$(VCPKG_TRIPLET) ) )
+	@echo.
+	@echo Checking OpenSSL...
+	@if exist "$(VCPKG_INSTALLED)\lib\libssl.lib" ( echo   OK: libssl.lib found ) else ( echo   WARNING: OpenSSL not found - install with: vcpkg install openssl:$(VCPKG_TRIPLET) )
+	@echo.
+	@echo Checking Boost headers...
+	@if exist "$(VCPKG_INSTALLED)\include\boost" ( echo   OK: Boost headers found ) else ( echo   WARNING: Boost not found - install with: vcpkg install boost:$(VCPKG_TRIPLET) )
+	@echo.
+	@echo Checking compiler...
+	@where cl.exe >nul 2>&1 && echo   OK: cl.exe found || echo   ERROR: cl.exe not found - use x64 Native Tools Command Prompt
+	@echo.
+	@echo ============================================
+	@echo Environment check complete
+	@echo ============================================
+	@echo.
+
+# ============================================================================
+# EXECUTABLES
+# ============================================================================
+bitokd.exe: dirs $(OBJS_DAEMON)
+	@echo.
+	@echo === Linking bitokd.exe ===
+	$(LINK) $(LDFLAGS) /OUT:$@ $(LIBPATHS) $(OBJS_DAEMON) $(LIBS_DAEMON)
+	@echo.
+	@echo *** bitokd.exe built successfully ***
+	@echo.
+
+bitok.exe: dirs $(OBJS_GUI)
+	@echo.
+	@echo === Linking bitok.exe ===
+	$(LINK) $(LDFLAGS) /SUBSYSTEM:WINDOWS /OUT:$@ $(LIBPATHS) $(OBJS_GUI) $(LIBS_GUI)
+	@echo.
+	@echo *** bitok.exe built successfully ***
+	@echo.
+
+# ============================================================================
+# DIRECTORIES
+# ============================================================================
+dirs:
+	@if not exist $(OBJDIR) mkdir $(OBJDIR)
+	@if not exist $(OBJDIR_DAEMON) mkdir $(OBJDIR_DAEMON)
+	@if not exist $(OBJDIR_GUI) mkdir $(OBJDIR_GUI)
+	@if not exist $(OBJDIR_CRYPTO) mkdir $(OBJDIR_CRYPTO)
+	@if not exist $(OBJDIR_YESPOWER) mkdir $(OBJDIR_YESPOWER)
+	@if not exist $(OBJDIR_JSON) mkdir $(OBJDIR_JSON)
+
+# ============================================================================
+# DAEMON COMPILATION RULES
+# ============================================================================
+$(OBJDIR_DAEMON)\util.obj: util.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_DAEMON) /Fo$@ util.cpp
+
+$(OBJDIR_DAEMON)\script.obj: script.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_DAEMON) /Fo$@ script.cpp
+
+$(OBJDIR_DAEMON)\bitcoin_db.obj: bitcoin_db.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_DAEMON) /Fo$@ bitcoin_db.cpp
+
+$(OBJDIR_DAEMON)\net.obj: net.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_DAEMON) /Fo$@ net.cpp
+
+$(OBJDIR_DAEMON)\irc.obj: irc.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_DAEMON) /Fo$@ irc.cpp
+
+$(OBJDIR_DAEMON)\main.obj: main.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_DAEMON) /Fo$@ main.cpp
+
+$(OBJDIR_DAEMON)\rpc.obj: rpc.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_DAEMON) /Fo$@ rpc.cpp
+
+$(OBJDIR_DAEMON)\init.obj: init.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_DAEMON) /Fo$@ init.cpp
+
+# ============================================================================
+# GUI COMPILATION RULES
+# ============================================================================
+$(OBJDIR_GUI)\util.obj: util.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_GUI) /Fo$@ util.cpp
+
+$(OBJDIR_GUI)\script.obj: script.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_GUI) /Fo$@ script.cpp
+
+$(OBJDIR_GUI)\bitcoin_db.obj: bitcoin_db.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_GUI) /Fo$@ bitcoin_db.cpp
+
+$(OBJDIR_GUI)\net.obj: net.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_GUI) /Fo$@ net.cpp
+
+$(OBJDIR_GUI)\irc.obj: irc.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_GUI) /Fo$@ irc.cpp
+
+$(OBJDIR_GUI)\main.obj: main.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_GUI) /Fo$@ main.cpp
+
+$(OBJDIR_GUI)\rpc.obj: rpc.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_GUI) /Fo$@ rpc.cpp
+
+$(OBJDIR_GUI)\init.obj: init.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_GUI) /Fo$@ init.cpp
+
+$(OBJDIR_GUI)\ui.obj: ui.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_GUI) /Fo$@ ui.cpp
+
+$(OBJDIR_GUI)\uibase.obj: uibase.cpp $(HEADERS)
+	$(CXX) /c $(CXXFLAGS_GUI) /Fo$@ uibase.cpp
+
+# ============================================================================
+# SHARED COMPILATION RULES
+# ============================================================================
+$(OBJDIR)\sha.obj: sha.cpp sha.h
+	$(CXX) /c $(CXXFLAGS) /Fo$@ sha.cpp
+
+# JSON Spirit
+$(OBJDIR_JSON)\json_spirit_reader.obj: json\json_spirit_reader.cpp json\json_spirit_reader.h
+	$(CXX) /c $(CXXFLAGS) /Fo$@ json\json_spirit_reader.cpp
+
+$(OBJDIR_JSON)\json_spirit_value.obj: json\json_spirit_value.cpp json\json_spirit_value.h
+	$(CXX) /c $(CXXFLAGS) /Fo$@ json\json_spirit_value.cpp
+
+$(OBJDIR_JSON)\json_spirit_writer.obj: json\json_spirit_writer.cpp json\json_spirit_writer.h
+	$(CXX) /c $(CXXFLAGS) /Fo$@ json\json_spirit_writer.cpp
+
+# ============================================================================
+# CRYPTO COMPILATION RULES (C++)
+# ============================================================================
+$(OBJDIR_CRYPTO)\sha256.obj: crypto\sha256.cpp crypto\sha256.h crypto\cpuid.h
+	$(CXX) /c $(CXXFLAGS) $(CRYPTO_DEFS) /Fo$@ crypto\sha256.cpp
+
+$(OBJDIR_CRYPTO)\sha256_shani.obj: crypto\sha256_shani.cpp crypto\sha256.h
+	$(CXX) /c $(CXXFLAGS) $(CRYPTO_DEFS) /Fo$@ crypto\sha256_shani.cpp
+
+# ============================================================================
+# YESPOWER COMPILATION RULES (C code)
+# ============================================================================
+$(OBJDIR_YESPOWER)\yespower-opt.obj: yespower-opt.c yespower.h yespower-platform.c sha256.h sysendian.h insecure_memzero.h
+	$(CC) /c $(CFLAGS) /Fo$@ yespower-opt.c
+
+$(OBJDIR_YESPOWER)\sha256-yp.obj: sha256.c sha256.h
+	$(CC) /c $(CFLAGS) /Fo$@ sha256.c
+
+$(OBJDIR_YESPOWER)\yespower_dispatch.obj: yespower_dispatch.c yespower_dispatch.h
+	$(CC) /c $(CFLAGS) /Fo$@ yespower_dispatch.c
+
+# ============================================================================
+# WINDOWS RESOURCES
+# ============================================================================
+$(OBJDIR)\ui_res.res: ui.rc
+	@echo Compiling Windows resources...
+	$(RC) /nologo /fo$@ /I"$(VCPKG_INSTALLED)\include" ui.rc
+
+# ============================================================================
+# CLEAN
+# ============================================================================
+clean:
+	@echo Cleaning build artifacts...
+	@if exist bitok.exe del /Q bitok.exe
+	@if exist bitokd.exe del /Q bitokd.exe
+	@if exist $(OBJDIR) rmdir /S /Q $(OBJDIR)
+	@if exist *.pdb del /Q *.pdb
+	@if exist *.ilk del /Q *.ilk
+	@echo Clean complete.
+
+# ============================================================================
+# HELP
+# ============================================================================
+help:
+	@echo.
+	@echo ============================================
+	@echo Bitok MSVC Build System
+	@echo ============================================
+	@echo.
+	@echo TARGETS:
+	@echo   daemon  - Build bitokd.exe (command-line, no GUI)
+	@echo   gui     - Build bitok.exe (wxWidgets GUI)
+	@echo   both    - Build both executables
+	@echo   check   - Verify build environment setup
+	@echo   clean   - Remove all build artifacts
+	@echo   help    - Show this help
+	@echo.
+	@echo PREREQUISITES:
+	@echo   1. Visual Studio 2019+ with C++ workload
+	@echo   2. vcpkg package manager
+	@echo   3. Required packages:
+	@echo      vcpkg install boost:x64-windows-static
+	@echo      vcpkg install berkeleydb:x64-windows-static
+	@echo      vcpkg install openssl:x64-windows-static
+	@echo      vcpkg install zlib:x64-windows-static
+	@echo      vcpkg install wxwidgets:x64-windows-static  (for GUI only)
+	@echo.
+	@echo USAGE:
+	@echo   1. Open "x64 Native Tools Command Prompt for VS"
+	@echo   2. set VCPKG_ROOT=C:\path\to\vcpkg
+	@echo   3. nmake -f makefile.vc check
+	@echo   4. nmake -f makefile.vc daemon
+	@echo.
+	@echo COMMON ISSUES:
+	@echo   - Berkeley DB version: Check lib name (libdb48.lib vs libdb53.lib)
+	@echo   - wxWidgets version: Check WX_VER (32 for 3.2, 33 for 3.3)
+	@echo   - Run 'nmake -f makefile.vc check' to diagnose problems
+	@echo.
+	@echo See BUILD_WINDOWS_VC.md for detailed documentation.
+	@echo.
+
+.PHONY: all daemon gui both check dirs clean help

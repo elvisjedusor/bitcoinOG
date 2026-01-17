@@ -22,6 +22,8 @@ bool fCommandLine = false;
 // Init openssl library multithreading support
 #if wxUSE_GUI
 static wxMutex** ppmutexOpenSSL;
+#elif defined(_WIN32) || defined(__MINGW32__)
+static CRITICAL_SECTION* ppmutexOpenSSL;
 #else
 #include <pthread.h>
 static pthread_mutex_t** ppmutexOpenSSL;
@@ -32,12 +34,16 @@ void locking_callback(int mode, int i, const char* file, int line)
     if (mode & CRYPTO_LOCK)
 #if wxUSE_GUI
         ppmutexOpenSSL[i]->Lock();
+#elif defined(_WIN32) || defined(__MINGW32__)
+        EnterCriticalSection(&ppmutexOpenSSL[i]);
 #else
         pthread_mutex_lock(ppmutexOpenSSL[i]);
 #endif
     else
 #if wxUSE_GUI
         ppmutexOpenSSL[i]->Unlock();
+#elif defined(_WIN32) || defined(__MINGW32__)
+        LeaveCriticalSection(&ppmutexOpenSSL[i]);
 #else
         pthread_mutex_unlock(ppmutexOpenSSL[i]);
 #endif
@@ -54,6 +60,10 @@ public:
         ppmutexOpenSSL = (wxMutex**)OPENSSL_malloc(CRYPTO_num_locks() * sizeof(wxMutex*));
         for (int i = 0; i < CRYPTO_num_locks(); i++)
             ppmutexOpenSSL[i] = new wxMutex();
+#elif defined(_WIN32) || defined(__MINGW32__)
+        ppmutexOpenSSL = (CRITICAL_SECTION*)OPENSSL_malloc(CRYPTO_num_locks() * sizeof(CRITICAL_SECTION));
+        for (int i = 0; i < CRYPTO_num_locks(); i++)
+            InitializeCriticalSection(&ppmutexOpenSSL[i]);
 #else
         ppmutexOpenSSL = (pthread_mutex_t**)OPENSSL_malloc(CRYPTO_num_locks() * sizeof(pthread_mutex_t*));
         for (int i = 0; i < CRYPTO_num_locks(); i++)
@@ -80,6 +90,8 @@ public:
         {
 #if wxUSE_GUI
             delete ppmutexOpenSSL[i];
+#elif defined(_WIN32) || defined(__MINGW32__)
+            DeleteCriticalSection(&ppmutexOpenSSL[i]);
 #else
             pthread_mutex_destroy(ppmutexOpenSSL[i]);
             OPENSSL_free(ppmutexOpenSSL[i]);
@@ -568,6 +580,10 @@ void GetDataDir(char* pszDir)
     if (pszSetDataDir[0] != 0)
     {
         strlcpy(pszDir, pszSetDataDir, MAX_PATH);
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+        for (char* p = pszDir; *p; p++)
+            if (*p == '\\') *p = '/';
+#endif
         static bool fMkdirDone;
         if (!fMkdirDone)
         {
@@ -597,8 +613,8 @@ void GetDataDir(char* pszDir)
             if (pszHome == NULL || pszHome[0] == '\0')
                 pszHome = getenv("USERPROFILE");
             if (pszHome == NULL || pszHome[0] == '\0')
-                pszHome = "C:\\";
-            snprintf(pszCachedDir, sizeof(pszCachedDir), "%s\\Bitok", pszHome);
+                pszHome = "C:/";
+            snprintf(pszCachedDir, sizeof(pszCachedDir), "%s/Bitok", pszHome);
 #else
             // Unix/Linux: Use HOME
             const char* pszHome = getenv("HOME");
@@ -606,6 +622,10 @@ void GetDataDir(char* pszDir)
                 pszHome = "/";
             snprintf(pszCachedDir, sizeof(pszCachedDir), "%s/.bitokd", pszHome);
 #endif
+#endif
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+            for (char* p = pszCachedDir; *p; p++)
+                if (*p == '\\') *p = '/';
 #endif
             _mkdir(pszCachedDir);
         }
@@ -617,7 +637,13 @@ string GetDataDir()
 {
     char pszDir[MAX_PATH];
     GetDataDir(pszDir);
-    return pszDir;
+    string strDir(pszDir);
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+    for (size_t i = 0; i < strDir.size(); i++)
+        if (strDir[i] == '\\')
+            strDir[i] = '/';
+#endif
+    return strDir;
 }
 
 int GetFilesize(FILE* file)

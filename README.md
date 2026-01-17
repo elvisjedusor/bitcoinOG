@@ -91,9 +91,10 @@ make -f makefile.unix gui
 
 ### Other Platforms
 
-- [BUILD_UNIX.md](BUILD_UNIX.md)
-- [BUILD_MACOS.md](BUILD_MACOS.md)
-- [BUILD_WINDOWS.md](BUILD_WINDOWS.md)
+- [BUILD_UNIX.md](BUILD_UNIX.md) - Linux/BSD build instructions
+- [BUILD_MACOS.md](BUILD_MACOS.md) - macOS build instructions
+- [BUILD_WINDOWS_MINGW.md](BUILD_WINDOWS_MINGW.md) - Windows MinGW/MSYS2 build
+- [BUILD_WINDOWS_VC.md](BUILD_WINDOWS_VC.md) - Windows Visual Studio build
 
 ## Running
 

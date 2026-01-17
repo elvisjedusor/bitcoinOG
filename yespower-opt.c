@@ -73,6 +73,16 @@
  */
 #undef USE_SSE4_FOR_32BIT
 
+/* MSVC doesn't define __SSE2__ but always has SSE2 on x64 */
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_AMD64))
+#ifndef __SSE2__
+#define __SSE2__ 1
+#endif
+#ifndef __SSE__
+#define __SSE__ 1
+#endif
+#endif
+
 #ifdef __SSE2__
 /*
  * GCC before 4.9 would by default unnecessarily use store/load (without
@@ -111,6 +121,8 @@
 #if __STDC_VERSION__ >= 199901L
 /* Have restrict */
 #elif defined(__GNUC__)
+#define restrict __restrict
+#elif defined(_MSC_VER)
 #define restrict __restrict
 #else
 #define restrict
