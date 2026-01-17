@@ -19,6 +19,12 @@
 #define __STDC_LIMIT_MACROS // to enable UINT64_MAX from stdint.h
 
 #if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#endif
+
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
 #ifndef CSIDL_APPDATA
 #define CSIDL_APPDATA 0x001a
 #endif
@@ -36,14 +42,8 @@
 #include <wx/utils.h>
 #include <wx/clipbrd.h>
 #include <wx/taskbar.h>
-#ifdef _
-#undef _
-#endif
-#define _(s) wxString(wxT(s))
-#define _STR(x) (wxString(_(x)).ToStdString())
 #else
 #define _(x) (x)
-#define _STR(x) std::string(x)
 #define wxOK 0
 #define wxICON_EXCLAMATION 0
 #define wxICON_ERROR 0
@@ -56,6 +56,8 @@
 #define wxID_NO 0
 #define wxID_CANCEL 0
 #endif
+
+#define _STR(x) std::string(x)
 
 // Include Berkeley DB after wxWidgets to let wxWidgets define ssize_t first
 #include "db_cxx_compat.h"
