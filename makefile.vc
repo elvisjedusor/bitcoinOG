@@ -48,7 +48,13 @@ OBJDIR_JSON=$(OBJDIR)\json
 # COMPILER FLAGS
 # ============================================================================
 # Optimization flags
+# Note: /GL (Whole Program Optimization) requires matching VS versions for all libs
+# Set USE_LTCG=1 to enable LTCG (faster code but requires consistent toolchain)
+!IFDEF USE_LTCG
 OPTFLAGS=/O2 /Oi /GL
+!ELSE
+OPTFLAGS=/O2 /Oi
+!ENDIF
 
 # Warning and standard flags
 WARNFLAGS=/W3 /wd4244 /wd4267 /wd4805 /wd4018
@@ -89,7 +95,11 @@ CRYPTO_DEFS=/DENABLE_SSE41 /DENABLE_X86_SHANI
 # ============================================================================
 # LINKER FLAGS
 # ============================================================================
+!IFDEF USE_LTCG
 LDFLAGS=/nologo /LTCG /OPT:REF /OPT:ICF /MACHINE:X64
+!ELSE
+LDFLAGS=/nologo /OPT:REF /OPT:ICF /MACHINE:X64
+!ENDIF
 LDFLAGS=$(LDFLAGS) /DYNAMICBASE /NXCOMPAT
 LIBPATHS=/LIBPATH:"$(VCPKG_INSTALLED)\lib"
 
@@ -103,8 +113,8 @@ LIBS_WIN=$(LIBS_WIN) uuid.lib ws2_32.lib mswsock.lib shlwapi.lib
 LIBS_WIN=$(LIBS_WIN) crypt32.lib comctl32.lib rpcrt4.lib winmm.lib
 
 # Berkeley DB library
-# vcpkg typically installs as libdb48.lib or libdb53.lib
-# Change this if your version differs
+# vcpkg only provides BDB 4.8.30 (not 5.3)
+# vcpkg: vcpkg install berkeleydb:x64-windows-static
 DB_LIB=libdb48.lib
 
 # OpenSSL libraries (vcpkg static names)
@@ -118,12 +128,12 @@ LIBS_DAEMON=$(DB_LIB) $(SSL_LIBS) $(ZLIB_LIB) $(LIBS_WIN)
 
 # wxWidgets libraries (vcpkg static names)
 # Adjust version (32=3.2, 33=3.3) as needed
-WX_VER=32
+WX_VER=33
 WX_LIBS=wxmsw$(WX_VER)u_core.lib wxmsw$(WX_VER)u_adv.lib wxmsw$(WX_VER)u_html.lib
 WX_LIBS=$(WX_LIBS) wxbase$(WX_VER)u.lib wxbase$(WX_VER)u_net.lib
 # vcpkg wxWidgets uses system libraries instead of bundled wx* versions
 # These are pulled in by: vcpkg install expat liblzma libpng libjpeg-turbo tiff
-WX_DEPS_LIBS=libpng16.lib jpeg.lib tiff.lib libexpat.lib liblzma.lib
+WX_DEPS_LIBS=libpng16.lib jpeg.lib tiff.lib libexpatMT.lib lzma.lib nanosvg.lib nanosvgrast.lib
 WX_LIBS=$(WX_LIBS) $(WX_DEPS_LIBS)
 
 # GUI libraries
@@ -222,7 +232,7 @@ check:
 	@echo   OK: Lib directory exists
 	@echo.
 	@echo Checking Berkeley DB...
-	@if exist "$(VCPKG_INSTALLED)\lib\libdb48.lib" ( echo   OK: libdb48.lib found ) else ( if exist "$(VCPKG_INSTALLED)\lib\libdb53.lib" ( echo   OK: libdb53.lib found - UPDATE DB_LIB in makefile! ) else ( echo   WARNING: Berkeley DB lib not found - install with: vcpkg install berkeleydb:$(VCPKG_TRIPLET) ) )
+	@if exist "$(VCPKG_INSTALLED)\lib\libdb48.lib" ( echo   OK: libdb48.lib found [vcpkg BDB 4.8] ) else ( echo   WARNING: Berkeley DB lib not found - install with: vcpkg install berkeleydb:$(VCPKG_TRIPLET) )
 	@echo.
 	@echo Checking OpenSSL...
 	@if exist "$(VCPKG_INSTALLED)\lib\libssl.lib" ( echo   OK: libssl.lib found ) else ( echo   WARNING: OpenSSL not found - install with: vcpkg install openssl:$(VCPKG_TRIPLET) )
@@ -417,8 +427,14 @@ help:
 	@echo   3. nmake -f makefile.vc check
 	@echo   4. nmake -f makefile.vc daemon
 	@echo.
+	@echo OPTIONS:
+	@echo   USE_LTCG=1  - Enable Link Time Code Generation (faster but requires
+	@echo                 consistent VS toolchain for all libraries)
+	@echo.
 	@echo COMMON ISSUES:
-	@echo   - Berkeley DB version: Check lib name (libdb48.lib vs libdb53.lib)
+	@echo   - C1905/LNK1257 errors: vcpkg libs built with different VS version.
+	@echo     Solution: Build without USE_LTCG (default) or rebuild vcpkg libs.
+	@echo   - Berkeley DB: vcpkg has BDB 4.8 only. Use -recover if migrating wallet from 5.3 build
 	@echo   - wxWidgets version: Check WX_VER (32 for 3.2, 33 for 3.3)
 	@echo   - Run 'nmake -f makefile.vc check' to diagnose problems
 	@echo.

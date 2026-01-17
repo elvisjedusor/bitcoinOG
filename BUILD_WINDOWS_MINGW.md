@@ -77,6 +77,18 @@ bitokd.exe -server -rpcuser=u -rpcpassword=p
 
 ## Troubleshooting
 
+### Berkeley DB Compatibility
+
+**Note:** Different build methods use different BDB versions:
+
+- MSYS2 `mingw-w64-x86_64-db` installs BDB 5.3+
+- Ubuntu `libdb5.3-dev` installs BDB 5.3
+- MSVC/vcpkg uses BDB 4.8.30 (vcpkg only provides 4.8)
+
+MinGW and Ubuntu builds share wallet format. MSVC builds have different wallet format.
+
+If migrating wallet between BDB versions, use: `bitokd -recover`
+
 ### Missing DLLs
 
 Build is configured for static linking. If you get DLL errors, copy these from MSYS2:

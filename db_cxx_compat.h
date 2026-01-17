@@ -5,7 +5,18 @@
 #ifndef DB_CXX_COMPAT_H
 #define DB_CXX_COMPAT_H
 
+// On Windows with MSVC in GUI mode, prevent Berkeley DB from redefining ssize_t
+// wxWidgets already defines it in wx/types.h
+// We temporarily rename ssize_t to a unique name during db.h inclusion
+#if defined(_MSC_VER) && defined(__WXMSW__)
+#define ssize_t bdb_ssize_t
+#endif
+
 #include <db.h>
+
+#if defined(_MSC_VER) && defined(__WXMSW__)
+#undef ssize_t
+#endif
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>

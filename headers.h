@@ -36,6 +36,10 @@
 #include <wx/utils.h>
 #include <wx/clipbrd.h>
 #include <wx/taskbar.h>
+#ifdef _
+#undef _
+#endif
+#define _(s) wxString(wxT(s))
 #define _STR(x) (wxString(_(x)).ToStdString())
 #else
 #define _(x) (x)
@@ -52,12 +56,15 @@
 #define wxID_NO 0
 #define wxID_CANCEL 0
 #endif
+
+// Include Berkeley DB after wxWidgets to let wxWidgets define ssize_t first
+#include "db_cxx_compat.h"
+
 #include <openssl/ecdsa.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/sha.h>
 #include <openssl/ripemd.h>
-#include "db_cxx_compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -101,9 +108,6 @@
 #include <direct.h>
 #include <process.h>
 #include <malloc.h>
-#ifndef _mkdir
-#define _mkdir(dir) mkdir(dir)
-#endif
 inline BOOL PathRemoveFileSpecA(LPSTR pszPath) {
     if (!pszPath) return FALSE;
     char* lastSlash = strrchr(pszPath, '\\');

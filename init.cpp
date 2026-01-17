@@ -275,7 +275,6 @@ bool CMyApp::OnInit2()
 #if !defined(_WIN32) && !defined(__MINGW32__) && !defined(__WXMSW__)
     umask(077);
 #endif
-
     InitSHA256();
     yespower_init_dispatch();
 
@@ -313,7 +312,6 @@ bool CMyApp::OnInit2()
         int ret = CommandLineRPC(argc, argv);
         exit(ret);
     }
-
     ParseParameters(argc, argv);
     if (mapArgs.count("-?") || mapArgs.count("--help"))
     {
@@ -363,13 +361,12 @@ bool CMyApp::OnInit2()
 
     if (mapArgs.count("-printtodebugger"))
         fPrintToDebugger = true;
-
     if (!fDebug && !pszSetDataDir[0])
         ShrinkDebugFile();
     printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-    printf("Bitok version %d.%d.%d%s, OS version %s\n", VERSION/10000, (VERSION/100)%100, VERSION%100, pszSubVer, ((string)wxGetOsDescription()).c_str());
-    printf("System default language is %d %s\n", m_locale.GetSystemLanguage(), ((string)m_locale.GetSysName()).c_str());
-    printf("Language file %s (%s)\n", (string("locale/") + (string)m_locale.GetCanonicalName() + "/LC_MESSAGES/bitok.mo").c_str(), ((string)m_locale.GetLocale()).c_str());
+    printf("Bitok version %d.%d.%d%s\n", VERSION/10000, (VERSION/100)%100, VERSION%100, pszSubVer);
+    printf("System default language is %d\n", m_locale.GetSystemLanguage());
+    printf("Language file loading...\n");
 
     if (mapArgs.count("-loadblockindextest"))
     {

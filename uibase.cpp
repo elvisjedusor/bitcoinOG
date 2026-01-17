@@ -20,7 +20,7 @@ CMainFrameBase::CMainFrameBase( wxWindow* parent, wxWindowID id, const wxString&
 {
 	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
 	this->SetBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_BTNFACE ) );
-	
+
 	m_menubar = new wxMenuBar( 0 );
 	m_menuFile = new wxMenu();
 	wxMenuItem* m_menuFileExit;
@@ -52,7 +52,7 @@ CMainFrameBase::CMainFrameBase( wxWindow* parent, wxWindowID id, const wxString&
 	m_menubar->Append( m_menuHelp, _("&Help") );
 	
 	this->SetMenuBar( m_menubar );
-	
+
 	m_toolBar = this->CreateToolBar( wxTB_FLAT|wxTB_HORZ_TEXT, wxID_ANY );
 	m_toolBar->SetToolBitmapSize( wxSize( 24,24 ) );
 	m_toolBar->SetToolSeparation( 8 );

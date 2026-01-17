@@ -9,6 +9,10 @@
 #define __uibase__
 
 #include <wx/intl.h>
+#ifdef _
+#undef _
+#endif
+#define _(s) wxString(wxT(s))
 
 #include <wx/string.h>
 #include <wx/bitmap.h>

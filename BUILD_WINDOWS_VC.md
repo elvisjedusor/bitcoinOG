@@ -40,13 +40,13 @@ set VCPKG_ROOT=C:\vcpkg
 nmake -f makefile.vc check
 
 # Build daemon
-nmake -f makefile.vc daemon
+nmake -f makefile.vc USE_LTCG=1 daemon
 
 # Build GUI
-nmake -f makefile.vc gui
+nmake -f makefile.vc USE_LTCG=1 gui
 
 # Build both
-nmake -f makefile.vc both
+nmake -f makefile.vc USE_LTCG=1 both
 
 # Clean
 nmake -f makefile.vc clean
@@ -72,21 +72,27 @@ This verifies vcpkg setup and shows which dependencies are missing.
 
 ### Berkeley DB version
 
-**Recommended:** Use BDB 4.8 for best compatibility (same as original Bitcoin):
+**Note:** vcpkg only provides Berkeley DB 4.8.30. This differs from Ubuntu/MinGW builds which use BDB 5.3.
 
 ```cmd
-vcpkg install berkeleydb[core]:x64-windows-static --overlay-ports=.
+vcpkg install berkeleydb:x64-windows-static
 ```
 
-vcpkg may install libdb48.lib or libdb53.lib. Check and update makefile.vc if needed:
+Verify installation:
 
 ```cmd
 dir C:\vcpkg\installed\x64-windows-static\lib\libdb*.lib
 ```
 
-Edit `DB_LIB=libdb48.lib` in makefile.vc to match.
+You should see `libdb48.lib`.
 
-**Note:** BDB 4.8 wallets are compatible with most Bitcoin-derived projects. Newer BDB versions may have API differences.
+**Wallet Compatibility:** MSVC builds (BDB 4.8) have different wallet format than Ubuntu/MinGW builds (BDB 5.3). If you previously used a wallet created by Ubuntu or MinGW build on this PC, run recovery after building:
+
+```cmd
+bitokd.exe -recover
+```
+
+This upgrades/recovers the wallet database for the current BDB version.
 
 ### wxWidgets version
 
