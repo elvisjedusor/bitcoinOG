@@ -132,10 +132,10 @@ Basic daemon startup:
 
 ```bash
 ./bitokd -daemon                           # Run in background
-./bitokd -gen                              # Enable mining
-./bitokd -rpcuser=user -rpcpassword=pass   # Set RPC credentials
 ./bitokd --help                            # Show all options
 ```
+
+Settings like RPC credentials and mining are configured in `bitok.conf` (see Configuration section below).
 
 ### RPC Commands
 
@@ -186,14 +186,32 @@ The GUI provides a user-friendly interface for sending/receiving coins, viewing 
 
 ## Configuration
 
-All settings are passed via command line arguments. There is no configuration file.
+Create `bitok.conf` in your data directory:
 
+| OS | Config File Path |
+|----|------------------|
+| Linux | `~/.bitokd/bitok.conf` |
+| macOS | `~/Library/Application Support/Bitok/bitok.conf` |
+
+**Example `bitok.conf`:**
+```ini
+server=1
+rpcuser=yourusername
+rpcpassword=yourpassword
+rpcport=8332
+rpcallowip=127.0.0.1
+gen=1
+```
+
+**Secure the config file:**
 ```bash
-./bitokd -daemon                           # Run in background
-./bitokd -gen                              # Enable mining
-./bitokd -rpcuser=user -rpcpassword=pass   # Set RPC credentials
-./bitokd -port=8333                        # Set network port
-./bitokd -addnode=192.168.1.100            # Connect to specific node
+chmod 600 ~/.bitokd/bitok.conf
+```
+
+**Usage:**
+```bash
+./bitokd -daemon                           # Reads bitok.conf automatically
+./bitokd getinfo                           # Uses credentials from config
 ./bitokd --help                            # Show all options
 ```
 
@@ -308,13 +326,15 @@ The daemon provides a **JSON-RPC 1.0** interface for programmatic access. This a
 
 ### Authentication
 
-RPC requests require HTTP Basic Authentication. Configure credentials via command line:
+RPC requests require HTTP Basic Authentication. Configure credentials in `bitok.conf`:
 
-```bash
-./bitokd -rpcuser=myuser -rpcpassword=mypassword -server
+```ini
+server=1
+rpcuser=myuser
+rpcpassword=mypassword
 ```
 
-All settings must be passed as command line arguments - there is no configuration file.
+See the [Configuration](#configuration) section for config file locations.
 
 ### Request Format
 

@@ -429,6 +429,8 @@ CNode* ConnectNode(CAddress addrConnect, int64 nTimeout)
     CNode* pnode = FindNode(addrConnect.ip);
     if (pnode)
     {
+        if (fDebug)
+            printf("[NET] Reusing existing connection to %s\n", addrConnect.ToStringLog().c_str());
         if (nTimeout != 0)
             pnode->AddRef(nTimeout);
         else
@@ -439,10 +441,11 @@ CNode* ConnectNode(CAddress addrConnect, int64 nTimeout)
     /// debug print
     double hoursSinceSeen = (addrConnect.nTime > 0) ? (double)(GetAdjustedTime() - addrConnect.nTime)/3600.0 : -1.0;
     double hoursSinceTry = (addrConnect.nLastTry > 0) ? (double)(GetAdjustedTime() - addrConnect.nLastTry)/3600.0 : -1.0;
-    printf("trying connection %s lastseen=%.1fhrs lasttry=%.1fhrs\n",
-        addrConnect.ToStringLog().c_str(),
-        hoursSinceSeen,
-        hoursSinceTry);
+    if (fDebug)
+        printf("[NET] Attempting connection to %s (lastseen=%.1fhrs, lasttry=%.1fhrs)\n",
+            addrConnect.ToStringLog().c_str(),
+            hoursSinceSeen,
+            hoursSinceTry);
 
     CRITICAL_BLOCK(cs_mapAddresses)
         mapAddresses[addrConnect.GetKey()].nLastTry = GetAdjustedTime();
@@ -451,8 +454,8 @@ CNode* ConnectNode(CAddress addrConnect, int64 nTimeout)
     SOCKET hSocket;
     if (ConnectSocket(addrConnect, hSocket))
     {
-        /// debug print
-        printf("connected %s\n", addrConnect.ToStringLog().c_str());
+        if (fDebug)
+            printf("[NET] Successfully connected to %s\n", addrConnect.ToStringLog().c_str());
 
         // Set to nonblocking
 #if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
@@ -488,8 +491,14 @@ void CNode::CloseSocketDisconnect()
     if (hSocket != INVALID_SOCKET)
     {
         if (fDebug)
-            printf("%s ", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
-        printf("disconnecting node %s\n", addr.ToStringLog().c_str());
+        {
+            int64 nConnDuration = GetTime() - nTimeConnected;
+            printf("[NET] %s Disconnecting peer %s (connected %lld sec, version %d)\n",
+                DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str(),
+                addr.ToStringLog().c_str(),
+                (long long)nConnDuration,
+                nVersion);
+        }
         closesocket(hSocket);
         hSocket = INVALID_SOCKET;
     }
@@ -664,11 +673,16 @@ void ThreadSocketHandler2(void* parg)
             }
             else
             {
-                printf("accepted connection %s\n", addr.ToStringLog().c_str());
+                if (fDebug)
+                    printf("[NET] Accepted inbound connection from %s\n", addr.ToStringLog().c_str());
                 CNode* pnode = new CNode(hSocket, addr, true);
                 pnode->AddRef();
                 CRITICAL_BLOCK(cs_vNodes)
+                {
                     vNodes.push_back(pnode);
+                    if (fDebug)
+                        printf("[NET] Total peers: %d\n", (int)vNodes.size());
+                }
             }
         }
 
@@ -842,6 +856,14 @@ void ThreadOpenConnections2(void* parg)
 {
     printf("ThreadOpenConnections started\n");
 
+    if (fTestMode)
+    {
+        printf("ThreadOpenConnections: TEST MODE - not connecting to peers\n");
+        while (!fShutdown)
+            Sleep(1000);
+        return;
+    }
+
     // Connect to specific addresses
     if (mapArgs.count("-connect"))
     {
@@ -924,8 +946,9 @@ void ThreadOpenConnections2(void* parg)
             if (fNeedSeeds && fCanTrySeeds)
             {
                 nLastSeedAttempt = GetTime();
-                printf("Connecting to seed nodes (connections=%d, seeds=%d, others=%d)\n",
-                       nCurrentConnections, nSeedConnections, nNonSeedConnections);
+                if (fDebug)
+                    printf("[NET] Connecting to seed nodes (connections=%d, seeds=%d, others=%d)\n",
+                           nCurrentConnections, nSeedConnections, nNonSeedConnections);
 
                 for (int i = 0; i < ARRAYLEN(pnSeed); i++)
                 {
@@ -937,7 +960,8 @@ void ThreadOpenConnections2(void* parg)
                     addr.port = DEFAULT_PORT;
                     addr.nServices = NODE_NETWORK;
                     addr.nTime = GetTime();
-                    printf("  Seed %d: %s\n", i, addr.ToString().c_str());
+                    if (fDebug)
+                        printf("[NET] Seed %d: %s\n", i, addr.ToString().c_str());
                     AddAddress(addr);
                     OpenNetworkConnection(addr);
                     Sleep(200);
@@ -946,7 +970,8 @@ void ThreadOpenConnections2(void* parg)
 
             if (nNonSeedConnections >= 6 && nSeedConnections > 0 && nCurrentConnections >= nMaxConnections - 1)
             {
-                printf("Have %d non-seed connections, freeing seed slot\n", nNonSeedConnections);
+                if (fDebug)
+                    printf("[NET] Have %d non-seed connections, freeing seed slot\n", nNonSeedConnections);
                 CRITICAL_BLOCK(cs_vNodes)
                 {
                     foreach(CNode* pnode, vNodes)

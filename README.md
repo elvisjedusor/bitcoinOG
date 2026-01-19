@@ -106,9 +106,27 @@ make -f makefile.unix gui
 ./bitokd stop                     # stop daemon
 ```
 
-**Note:** This is original Bitcoin v0.3.19 behavior - there is no config file. All settings must be passed via command line:
+**Configuration:** Settings can be passed via command line or config file.
+
+Config file location:
+| OS | Path |
+|----|------|
+| Linux (daemon) | `~/.bitokd/bitok.conf` |
+| macOS | `~/Library/Application Support/Bitok/bitok.conf` |
+| Windows | `%APPDATA%\Bitok\bitok.conf` |
+
+Example config file:
+```ini
+server=1
+rpcuser=user
+rpcpassword=pass
+gen=1
+addnode=1.2.3.4
+```
+
+Then run:
 ```bash
-./bitokd -gen -addnode=1.2.3.4 -rpcuser=user -rpcpassword=pass
+./bitokd -daemon
 ```
 
 **RPC:**
@@ -146,7 +164,7 @@ See [BITOKPOW.md](BITOKPOW.md) for technical details on Yespower.
 
 | OS | Path |
 |----|------|
-| Linux | `~/.bitok/` |
+| Linux | `~/.bitokd/` |
 | macOS | `~/Library/Application Support/Bitok/` |
 | Windows | `%APPDATA%\Bitok\` |
 
@@ -185,10 +203,26 @@ All the security fixes from Satoshi's final release are included:
 
 ## Documentation
 
-- [MANIFESTO.md](MANIFESTO.md) - why this exists
-- [RPC_API.md](RPC_API.md) - JSON-RPC API reference
-- [BITOKPOW.md](BITOKPOW.md) - Yespower mining details
-- [CHANGELOG.md](CHANGELOG.md) - version history
+### General
+- [MANIFESTO.md](MANIFESTO.md) - Why this exists
+- [CHANGELOG.md](CHANGELOG.md) - Version history
+
+### Mining
+- [BITOKPOW.md](BITOKPOW.md) - Yespower proof-of-work details
+- [SOLO_MINING.md](SOLO_MINING.md) - Solo mining guide with cpuminer
+- [POOL_INTEGRATION.md](POOL_INTEGRATION.md) - Mining pool integration guide
+- [MINING_OPTIMIZATIONS.md](MINING_OPTIMIZATIONS.md) - Performance tuning
+
+### API & Integration
+- [RPC_API.md](RPC_API.md) - Complete JSON-RPC API reference
+- [RPC_MINING_IMPLEMENTATION.md](RPC_MINING_IMPLEMENTATION.md) - Mining RPC implementation details
+
+### Building
+- [BUILD_UNIX.md](BUILD_UNIX.md) - Linux/BSD build instructions
+- [BUILD_MACOS.md](BUILD_MACOS.md) - macOS build instructions
+- [BUILD_WINDOWS.md](BUILD_WINDOWS.md) - Windows build overview
+- [BUILD_WINDOWS_MINGW.md](BUILD_WINDOWS_MINGW.md) - Windows MinGW/MSYS2 build
+- [BUILD_WINDOWS_VC.md](BUILD_WINDOWS_VC.md) - Windows Visual Studio build
 
 ## License
 

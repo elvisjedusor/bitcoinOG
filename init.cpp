@@ -312,7 +312,21 @@ bool CMyApp::OnInit2()
         int ret = CommandLineRPC(argc, argv);
         exit(ret);
     }
+
     ParseParameters(argc, argv);
+
+    if (mapArgs.count("-datadir"))
+        strlcpy(pszSetDataDir, mapArgs["-datadir"].c_str(), sizeof(pszSetDataDir));
+
+    map<string, string> mapConfigSettings;
+    ReadConfigFile(mapConfigSettings);
+
+    for (map<string, string>::iterator mi = mapConfigSettings.begin(); mi != mapConfigSettings.end(); ++mi)
+    {
+        if (mapArgs.count((*mi).first) == 0)
+            mapArgs[(*mi).first] = (*mi).second;
+    }
+
     if (mapArgs.count("-?") || mapArgs.count("--help"))
     {
         wxString strUsage = string() +
@@ -353,22 +367,20 @@ bool CMyApp::OnInit2()
     if (mapArgs.count("-datadir"))
         strlcpy(pszSetDataDir, mapArgs["-datadir"].c_str(), sizeof(pszSetDataDir));
 
-    if (mapArgs.count("-debug"))
-    {
-        fDebug = true;
+    fDebug = GetBoolArg("-debug");
+    if (fDebug)
         fPrintToConsole = true;
-    }
 
-    if (mapArgs.count("-printtodebugger"))
-        fPrintToDebugger = true;
+    fPrintToDebugger = GetBoolArg("-printtodebugger");
     if (!fDebug && !pszSetDataDir[0])
         ShrinkDebugFile();
     printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     printf("Bitok version %d.%d.%d%s\n", VERSION/10000, (VERSION/100)%100, VERSION%100, pszSubVer);
+    printf("Debug mode: %s\n", fDebug ? "ON" : "OFF");
     printf("System default language is %d\n", m_locale.GetSystemLanguage());
     printf("Language file loading...\n");
 
-    if (mapArgs.count("-loadblockindextest"))
+    if (GetBoolArg("-loadblockindextest"))
     {
         CTxDB txdb("r");
         txdb.LoadBlockIndex();
@@ -376,7 +388,7 @@ bool CMyApp::OnInit2()
         return false;
     }
 
-    if (mapArgs.count("-recover"))
+    if (GetBoolArg("-recover"))
     {
         printf("Running database recovery...\n");
         if (!RecoverDatabaseEnvironment())
@@ -515,7 +527,7 @@ bool CMyApp::OnInit2()
     //
     // Parameters
     //
-    if (mapArgs.count("-printblockindex") || mapArgs.count("-printblocktree"))
+    if (GetBoolArg("-printblockindex") || GetBoolArg("-printblocktree"))
     {
         PrintBlockTree();
         return false;
@@ -552,11 +564,9 @@ bool CMyApp::OnInit2()
             fGenerateBitcoins = (atoi(mapArgs["-gen"].c_str()) != 0);
     }
 
-    if (mapArgs.count("-solo"))
-    {
-        fSoloMining = true;
-        printf("Solo mining mode enabled - mining without peers\n");
-    }
+    fTestMode = GetBoolArg("-testmode");
+    if (fTestMode)
+        printf("TEST MODE enabled - no peer connections, minimum difficulty\n");
 
     if (mapArgs.count("-genproclimit"))
     {
@@ -610,7 +620,7 @@ bool CMyApp::OnInit2()
     if (!CreateThread(StartNode, NULL))
         wxMessageBox("Error: CreateThread(StartNode) failed", "Bitok");
 
-    if (mapArgs.count("-server") || fDaemon)
+    if (GetBoolArg("-server") || fDaemon)
         CreateThread(ThreadRPCServer, NULL);
 
     if (fFirstRun)
@@ -713,14 +723,22 @@ bool AppInit(int argc, char* argv[])
 
     if (fCommandLine)
     {
-        // Parse parameters first so -datadir is available for RPC
         ParseParameters(argc, argv);
 
-        // Build new argv: program name + RPC command + RPC args
-        // CommandLineRPC expects argv[1] to be the method name
-        int rpcArgc = 1 + (argc - rpcArgIndex);  // prog + command + args
+        if (mapArgs.count("-datadir"))
+            strlcpy(pszSetDataDir, mapArgs["-datadir"].c_str(), sizeof(pszSetDataDir));
+
+        map<string, string> mapConfigSettings;
+        ReadConfigFile(mapConfigSettings);
+        for (map<string, string>::iterator mi = mapConfigSettings.begin(); mi != mapConfigSettings.end(); ++mi)
+        {
+            if (mapArgs.count((*mi).first) == 0)
+                mapArgs[(*mi).first] = (*mi).second;
+        }
+
+        int rpcArgc = 1 + (argc - rpcArgIndex);
         char** rpcArgv = new char*[rpcArgc];
-        rpcArgv[0] = argv[0];  // program name
+        rpcArgv[0] = argv[0];
         for (int i = rpcArgIndex; i < argc; i++)
             rpcArgv[1 + i - rpcArgIndex] = argv[i];
 
@@ -730,6 +748,18 @@ bool AppInit(int argc, char* argv[])
     }
 
     ParseParameters(argc, argv);
+
+    if (mapArgs.count("-datadir"))
+        strlcpy(pszSetDataDir, mapArgs["-datadir"].c_str(), sizeof(pszSetDataDir));
+
+    map<string, string> mapConfigSettings;
+    ReadConfigFile(mapConfigSettings);
+
+    for (map<string, string>::iterator mi = mapConfigSettings.begin(); mi != mapConfigSettings.end(); ++mi)
+    {
+        if (mapArgs.count((*mi).first) == 0)
+            mapArgs[(*mi).first] = (*mi).second;
+    }
 
     if (mapArgs.count("-?") || mapArgs.count("--help"))
     {
@@ -758,22 +788,20 @@ bool AppInit(int argc, char* argv[])
     if (mapArgs.count("-datadir"))
         strlcpy(pszSetDataDir, mapArgs["-datadir"].c_str(), sizeof(pszSetDataDir));
 
-    if (mapArgs.count("-debug"))
-    {
-        fDebug = true;
+    fDebug = GetBoolArg("-debug");
+    if (fDebug)
         fPrintToConsole = true;
-    }
 
-    if (mapArgs.count("-printtodebugger"))
-        fPrintToDebugger = true;
+    fPrintToDebugger = GetBoolArg("-printtodebugger");
 
     if (!fDebug && !pszSetDataDir[0])
         ShrinkDebugFile();
 
     printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     printf("Bitok version %d.%d.%d%s\n", VERSION/10000, (VERSION/100)%100, VERSION%100, pszSubVer);
+    printf("Debug mode: %s\n", fDebug ? "ON" : "OFF");
 
-    if (mapArgs.count("-loadblockindextest"))
+    if (GetBoolArg("-loadblockindextest"))
     {
         CTxDB txdb("r");
         txdb.LoadBlockIndex();
@@ -781,7 +809,7 @@ bool AppInit(int argc, char* argv[])
         return false;
     }
 
-    if (mapArgs.count("-recover"))
+    if (GetBoolArg("-recover"))
     {
         printf("Running database recovery...\n");
         if (!RecoverDatabaseEnvironment())
@@ -815,11 +843,9 @@ bool AppInit(int argc, char* argv[])
             fGenerateBitcoins = (atoi(mapArgs["-gen"].c_str()) != 0);
     }
 
-    if (mapArgs.count("-solo"))
-    {
-        fSoloMining = true;
-        printf("Solo mining mode enabled - mining without peers\n");
-    }
+    fTestMode = GetBoolArg("-testmode");
+    if (fTestMode)
+        printf("TEST MODE enabled - no peer connections, minimum difficulty\n");
 
     if (mapArgs.count("-genproclimit"))
     {
@@ -877,7 +903,7 @@ bool AppInit(int argc, char* argv[])
 
     printf("Done loading\n");
 
-    if (mapArgs.count("-printblockindex") || mapArgs.count("-printblocktree"))
+    if (GetBoolArg("-printblockindex") || GetBoolArg("-printblocktree"))
     {
         PrintBlockTree();
         return false;
@@ -955,7 +981,7 @@ bool AppInit(int argc, char* argv[])
         return false;
     }
 
-    if (mapArgs.count("-server") || fDaemon)
+    if (GetBoolArg("-server") || fDaemon)
         CreateThread(ThreadRPCServer, NULL);
 
     return true;

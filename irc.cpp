@@ -156,6 +156,13 @@ bool Wait(int nSeconds)
 void ThreadIRCSeed(void* parg)
 {
     printf("ThreadIRCSeed started\n");
+
+    if (fTestMode)
+    {
+        printf("ThreadIRCSeed: TEST MODE - skipping IRC bootstrap\n");
+        return;
+    }
+
     int nErrorWait = 10;
     int nRetryWait = 10;
     bool fNameInUse = false;

@@ -482,6 +482,83 @@ void ParseParameters(int argc, char* argv[])
     }
 }
 
+bool ReadConfigFile(map<string, string>& mapSettingsRet)
+{
+    string strConfigFile = GetDataDir() + "/bitok.conf";
+    FILE* file = fopen(strConfigFile.c_str(), "r");
+    if (!file)
+        return true;
+
+    char pszLine[1000];
+    while (fgets(pszLine, sizeof(pszLine), file))
+    {
+        char* p = pszLine;
+        while (isspace(*p))
+            p++;
+        if (*p == '\0' || *p == '#')
+            continue;
+
+        char* pszKey = p;
+        while (*p && !isspace(*p) && *p != '=' && *p != '#')
+            p++;
+        if (*p == '\0' || *p == '#')
+            continue;
+
+        *p++ = '\0';
+        while (isspace(*p) || *p == '=')
+            p++;
+
+        char* pszValue = p;
+        while (*p && *p != '\r' && *p != '\n' && *p != '#')
+            p++;
+        *p = '\0';
+
+        while (p > pszValue && isspace(p[-1]))
+            *--p = '\0';
+
+        string strKey(pszKey);
+        string strValue(pszValue);
+
+        #if defined(_WIN32) || defined(__MINGW32__) || defined(__WXMSW__)
+        transform(strKey.begin(), strKey.end(), strKey.begin(), ::tolower);
+        #endif
+
+        if (strKey[0] != '-')
+            strKey = "-" + strKey;
+
+        if (mapSettingsRet.count(strKey) == 0)
+            mapSettingsRet[strKey] = strValue;
+        mapMultiArgs[strKey].push_back(strValue);
+    }
+    fclose(file);
+    return true;
+}
+
+string GetArg(const string& strArg, const string& strDefault)
+{
+    if (mapArgs.count(strArg))
+        return mapArgs[strArg];
+    return strDefault;
+}
+
+int64 GetIntArg(const string& strArg, int64 nDefault)
+{
+    if (mapArgs.count(strArg))
+        return atoi64(mapArgs[strArg]);
+    return nDefault;
+}
+
+bool GetBoolArg(const string& strArg, bool fDefault)
+{
+    if (mapArgs.count(strArg))
+    {
+        if (mapArgs[strArg].empty())
+            return true;
+        return (atoi(mapArgs[strArg]) != 0);
+    }
+    return fDefault;
+}
+
 
 const char* wxGetTranslation(const char* pszEnglish)
 {

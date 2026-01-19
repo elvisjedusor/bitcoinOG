@@ -71,9 +71,10 @@ Data directory: `%APPDATA%\Bitok\`
 ```cmd
 bitok.exe                           # GUI wallet
 bitokd.exe                          # Daemon
-bitokd.exe -gen                     # Mine
-bitokd.exe -server -rpcuser=u -rpcpassword=p
+bitokd.exe -daemon                  # Background
 ```
+
+Configure settings in `%APPDATA%\Bitok\bitok.conf`. See [README.md](README.md) for config options.
 
 ## Troubleshooting
 

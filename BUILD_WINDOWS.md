@@ -125,11 +125,10 @@ bitok.exe
 bitokd.exe
 ```
 
-Or with arguments:
+Or run in background:
 
 ```cmd
 bitokd.exe -daemon
-bitokd.exe -server -rpcuser=user -rpcpassword=pass
 ```
 
 ---
@@ -138,15 +137,23 @@ bitokd.exe -server -rpcuser=user -rpcpassword=pass
 
 Data directory: `%APPDATA%\Bitok\`
 
-All settings are passed via command line arguments - there is no configuration file.
+Create `bitok.conf` in the data directory:
 
+```ini
+server=1
+rpcuser=yourusername
+rpcpassword=yourpassword
+rpcport=8332
+gen=1
+```
+
+Then simply run:
 ```cmd
 bitokd.exe -daemon
-bitokd.exe -gen
-bitokd.exe -rpcuser=yourusername -rpcpassword=yourpassword -server
-bitokd.exe -addnode=192.168.1.100
-bitokd.exe --help
+bitokd.exe getinfo
 ```
+
+See [README.md](README.md) for all config options.
 
 ---
 

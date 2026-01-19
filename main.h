@@ -22,6 +22,8 @@ static const unsigned int MAX_INV_SZ = 50000;
 static const int64 COIN = 100000000;
 static const int64 CENT = 1000000;
 static const int COINBASE_MATURITY = 100;
+extern int fTestMode;
+inline int GetCoinbaseMaturity() { return fTestMode ? 0 : COINBASE_MATURITY; }
 static const int64 MAX_MONEY = 21000000 * COIN;
 
 inline bool MoneyRange(int64 nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
@@ -55,7 +57,6 @@ extern int fLimitProcessors;
 extern int nLimitProcessors;
 extern int fMinimizeToTray;
 extern int fMinimizeOnClose;
-extern int fSoloMining;
 
 
 
@@ -86,6 +87,9 @@ void GenerateBitcoins(bool fGenerate);
 void ThreadBitcoinMiner(void* parg);
 void ThreadGenesisMiner(void* parg);
 void BitcoinMiner();
+CBlock* CreateNewBlock(CKey& key);
+int64 GetNetworkHashPS(int lookup = 30);
+bool ProcessBlock(CNode* pfrom, CBlock* pblock);
 
 
 

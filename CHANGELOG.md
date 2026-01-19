@@ -13,7 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-platform build system (Linux, Windows, macOS)
 - SHA-NI hardware acceleration for supported CPUs
 - Static linking for portable Windows binaries
-- New RPC commands for integrations
+- Configuration file support (bitok.conf)
+- Mining RPC commands for pool integration:
+  - `getmininginfo` - Mining statistics
+  - `getblocktemplate` - BIP 22 block template
+  - `submitblock` - Block submission
+  - `getwork` - Legacy mining protocol
 
 ### Changed
 - Updated OpenSSL to 3.x compatibility

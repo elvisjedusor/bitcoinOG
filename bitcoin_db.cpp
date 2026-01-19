@@ -1190,17 +1190,24 @@ bool CWalletDB::LoadWallet()
                 ssKey >> strKey;
 
                 // Menu state
-                if (strKey == "fGenerateBitcoins")  ssValue >> fGenerateBitcoins;
+                // Only load wallet setting if not specified in command line or config file
+                if (strKey == "fGenerateBitcoins" && mapArgs.count("-gen") == 0)
+                    ssValue >> fGenerateBitcoins;
 
-                // Options
-                if (strKey == "nTransactionFee")    ssValue >> nTransactionFee;
+                // Options - only load from wallet if not specified in command line or config
+                if (strKey == "nTransactionFee" && mapArgs.count("-paytxfee") == 0)
+                    ssValue >> nTransactionFee;
                 if (strKey == "addrIncoming")       ssValue >> addrIncoming;
-                if (strKey == "fLimitProcessors")   ssValue >> fLimitProcessors;
-                if (strKey == "nLimitProcessors")   ssValue >> nLimitProcessors;
+                if (strKey == "fLimitProcessors" && mapArgs.count("-genproclimit") == 0)
+                    ssValue >> fLimitProcessors;
+                if (strKey == "nLimitProcessors" && mapArgs.count("-genproclimit") == 0)
+                    ssValue >> nLimitProcessors;
                 if (strKey == "fMinimizeToTray")    ssValue >> fMinimizeToTray;
                 if (strKey == "fMinimizeOnClose")   ssValue >> fMinimizeOnClose;
-                if (strKey == "fUseProxy")          ssValue >> fUseProxy;
-                if (strKey == "addrProxy")          ssValue >> addrProxy;
+                if (strKey == "fUseProxy" && mapArgs.count("-proxy") == 0)
+                    ssValue >> fUseProxy;
+                if (strKey == "addrProxy" && mapArgs.count("-proxy") == 0)
+                    ssValue >> addrProxy;
 
             }
         }
@@ -1273,7 +1280,7 @@ void ThreadFlushWalletDB(void* parg)
     if (fOneThread)
         return;
     fOneThread = true;
-    if (mapArgs.count("-noflushwallet"))
+    if (GetBoolArg("-noflushwallet"))
         return;
 
     unsigned int nLastSeen = nWalletDBUpdated;

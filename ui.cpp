@@ -626,8 +626,10 @@ bool CMainFrame::InsertTransaction(const CWalletTx& wtx, bool fNew, int nIndex)
         // We display regular transactions right away before any confirmation
         // because they can always get into some block eventually.  Generated coins
         // are special because if their block is not accepted, they are not valid.
+        // In testmode, show coinbase with depth >= 1 for immediate feedback.
         //
-        if (wtx.GetDepthInMainChain() < 2)
+        int nMinDepth = fTestMode ? 1 : 2;
+        if (wtx.GetDepthInMainChain() < nMinDepth)
         {
             wtx.nLinesDisplayed = 0;
             return false;
@@ -2797,7 +2799,7 @@ wxMenu* CMyTaskBarIcon::CreatePopupMenu()
 void CreateMainWindow()
 {
     pframeMain = new CMainFrame(NULL);
-    if (mapArgs.count("-min"))
+    if (GetBoolArg("-min"))
         pframeMain->Iconize(true);
     pframeMain->Show(true);  // have to show first to get taskbar button to hide
     if (fMinimizeToTray && pframeMain->IsIconized())

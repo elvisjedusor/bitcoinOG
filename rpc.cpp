@@ -112,9 +112,9 @@ Value getblockcount(const Array& params, bool fHelp)
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "getblockcount\n"
-            "Returns the number of blocks in the longest block chain.");
+            "Returns the height of the most recent block in the longest block chain.");
 
-    return nBestHeight + 1;
+    return nBestHeight;
 }
 
 
@@ -365,14 +365,29 @@ Value getconnectioncount(const Array& params, bool fHelp)
 
 double GetDifficulty()
 {
-    // Floating point number that is a multiple of the minimum difficulty,
-    // minimum difficulty = 1.0.
     if (pindexBest == NULL)
         return 1.0;
-    int nShift = 256 - 17 - 31;
-    double dMinimum = (CBigNum().SetCompact(bnProofOfWorkLimit.GetCompact()) >> nShift).getuint();
-    double dCurrently = (CBigNum().SetCompact(pindexBest->nBits) >> nShift).getuint();
-    return dMinimum / dCurrently;
+
+    int nShift = (pindexBest->nBits >> 24) & 0xff;
+    int nMantissa = pindexBest->nBits & 0x00ffffff;
+
+    if (nMantissa == 0)
+        return 1.0;
+
+    double dDiff = (double)0x00ffffff / (double)nMantissa;
+
+    while (nShift < 0x1e)
+    {
+        dDiff *= 256.0;
+        nShift++;
+    }
+    while (nShift > 0x1e)
+    {
+        dDiff /= 256.0;
+        nShift--;
+    }
+
+    return dDiff;
 }
 
 Value getdifficulty(const Array& params, bool fHelp)
@@ -434,6 +449,297 @@ Value setgenerate(const Array& params, bool fHelp)
 }
 
 
+Value getmininginfo(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getmininginfo\n"
+            "Returns an object containing mining-related information.");
+
+    Object obj;
+    obj.push_back(Pair("blocks",            (int)nBestHeight));
+    obj.push_back(Pair("currentblocksize",  (uint64_t)0));
+    obj.push_back(Pair("currentblocktx",    (uint64_t)0));
+    obj.push_back(Pair("difficulty",        (double)GetDifficulty()));
+    obj.push_back(Pair("networkhashps",     (int64_t)GetNetworkHashPS()));
+    obj.push_back(Pair("pooledtx",          (uint64_t)mapTransactions.size()));
+    obj.push_back(Pair("chain",             string("main")));
+    obj.push_back(Pair("generate",          (bool)fGenerateBitcoins));
+    obj.push_back(Pair("genproclimit",      (int)(fLimitProcessors ? nLimitProcessors : -1)));
+    return obj;
+}
+
+
+Value getblocktemplate(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+        throw runtime_error(
+            "getblocktemplate [params]\n"
+            "Returns data needed to construct a block to work on.\n"
+            "See BIP 22 for full specification.");
+
+    CKey key;
+    key.MakeNewKey();
+
+    CBlock* pblock = CreateNewBlock(key);
+    if (!pblock)
+        throw runtime_error("Out of memory");
+
+    auto_ptr<CBlock> pblockAuto(pblock);
+
+    Object result;
+    result.push_back(Pair("version", pblock->nVersion));
+    result.push_back(Pair("previousblockhash", pblock->hashPrevBlock.GetHex()));
+
+    Array transactions;
+    for (unsigned int i = 1; i < pblock->vtx.size(); i++)
+    {
+        const CTransaction& tx = pblock->vtx[i];
+        CDataStream ssTx(SER_NETWORK);
+        ssTx << tx;
+
+        Object entry;
+        entry.push_back(Pair("data", HexStr(ssTx.begin(), ssTx.end())));
+        entry.push_back(Pair("txid", tx.GetHash().GetHex()));
+        entry.push_back(Pair("hash", tx.GetHash().GetHex()));
+        entry.push_back(Pair("depends", Array()));
+        entry.push_back(Pair("fee", (int64_t)0));
+        entry.push_back(Pair("sigops", (int64_t)0));
+        transactions.push_back(entry);
+    }
+    result.push_back(Pair("transactions", transactions));
+
+    Object coinbaseaux;
+    coinbaseaux.push_back(Pair("flags", string("")));
+    result.push_back(Pair("coinbaseaux", coinbaseaux));
+
+    result.push_back(Pair("coinbasevalue", (int64_t)pblock->vtx[0].vout[0].nValue));
+
+    uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
+    result.push_back(Pair("target", hashTarget.GetHex()));
+
+    result.push_back(Pair("mintime", (int64_t)pblock->nTime));
+
+    Array mutable_arr;
+    mutable_arr.push_back("time");
+    mutable_arr.push_back("transactions");
+    mutable_arr.push_back("prevblock");
+    result.push_back(Pair("mutable", mutable_arr));
+
+    result.push_back(Pair("noncerange", string("00000000ffffffff")));
+    result.push_back(Pair("sigoplimit", (int64_t)20000));
+    result.push_back(Pair("sizelimit", (int64_t)MAX_BLOCK_SIZE));
+    result.push_back(Pair("curtime", (int64_t)GetTime()));
+    result.push_back(Pair("bits", strprintf("%08x", pblock->nBits)));
+    result.push_back(Pair("height", (int64_t)(nBestHeight + 1)));
+
+    return result;
+}
+
+
+Value submitblock(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 2)
+        throw runtime_error(
+            "submitblock <hex data> [optional-params-obj]\n"
+            "Attempts to submit new block to network.\n"
+            "Returns null on success, error string on failure.");
+
+    vector<unsigned char> blockData = ParseHex(params[0].get_str());
+    CDataStream ssBlock(blockData, SER_NETWORK);
+    CBlock block;
+
+    try {
+        ssBlock >> block;
+    }
+    catch (std::exception &e) {
+        throw runtime_error("Block decode failed");
+    }
+
+    bool fAccepted = ProcessBlock(NULL, &block);
+    if (!fAccepted)
+        return string("rejected");
+
+    return Value::null;
+}
+
+
+static map<uint256, CBlock*> mapGetworkBlocks;
+static map<uint256, CKey> mapGetworkKeys;
+static CCriticalSection cs_getwork;
+
+Value getwork(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+        throw runtime_error(
+            "getwork [data]\n"
+            "If [data] is not specified, returns work data.\n"
+            "If [data] is specified, tries to solve the block.");
+
+    if (params.size() == 0)
+    {
+        CKey key;
+        key.MakeNewKey();
+
+        CBlock* pblock = CreateNewBlock(key);
+        if (!pblock)
+            throw runtime_error("Out of memory");
+
+        unsigned char pdata[128];
+        memset(pdata, 0, sizeof(pdata));
+
+        memcpy(pdata, &pblock->nVersion, 4);
+        memcpy(pdata + 4, pblock->hashPrevBlock.begin(), 32);
+        memcpy(pdata + 36, pblock->hashMerkleRoot.begin(), 32);
+        memcpy(pdata + 68, &pblock->nTime, 4);
+        memcpy(pdata + 72, &pblock->nBits, 4);
+        unsigned int nNonce = 0;
+        memcpy(pdata + 76, &nNonce, 4);
+
+        for (int i = 0; i < 32; i++)
+        {
+            unsigned char tmp;
+            tmp = pdata[i*4];
+            pdata[i*4] = pdata[i*4+3];
+            pdata[i*4+3] = tmp;
+            tmp = pdata[i*4+1];
+            pdata[i*4+1] = pdata[i*4+2];
+            pdata[i*4+2] = tmp;
+        }
+
+        uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
+
+        uint256 hashMerkle = pblock->hashMerkleRoot;
+        CRITICAL_BLOCK(cs_getwork)
+        {
+            mapGetworkBlocks[hashMerkle] = pblock;
+            mapGetworkKeys[hashMerkle] = key;
+            if (mapGetworkBlocks.size() > 100)
+            {
+                map<uint256, CBlock*>::iterator it = mapGetworkBlocks.begin();
+                mapGetworkKeys.erase(it->first);
+                delete it->second;
+                mapGetworkBlocks.erase(it);
+            }
+        }
+
+        string strTarget = HexStr(BEGIN(hashTarget), END(hashTarget), false);
+
+        if (fDebug)
+            printf("[getwork] bits=%08x target=%s height=%d\n",
+                   pblock->nBits, strTarget.c_str(), nBestHeight + 1);
+
+        Object result;
+        result.push_back(Pair("data", HexStr(pdata, pdata + 128, false)));
+        result.push_back(Pair("target", strTarget));
+        result.push_back(Pair("algorithm", string("yespower")));
+
+        return result;
+    }
+    else
+    {
+        if (fDebug)
+            printf("[getwork] received submission, data length=%d\n", (int)params[0].get_str().size());
+
+        vector<unsigned char> vchData = ParseHex(params[0].get_str());
+
+        if (fDebug)
+            printf("[getwork] parsed %d bytes\n", (int)vchData.size());
+
+        if (vchData.size() < 80)
+            throw runtime_error("Invalid parameter - data too short");
+
+        for (size_t i = 0; i < vchData.size() / 4; i++)
+        {
+            unsigned char tmp;
+            tmp = vchData[i*4];
+            vchData[i*4] = vchData[i*4+3];
+            vchData[i*4+3] = tmp;
+            tmp = vchData[i*4+1];
+            vchData[i*4+1] = vchData[i*4+2];
+            vchData[i*4+2] = tmp;
+        }
+
+        unsigned int nVersion;
+        uint256 hashPrevBlock;
+        uint256 hashMerkleRoot;
+        unsigned int nTime;
+        unsigned int nBits;
+        unsigned int nNonce;
+
+        memcpy(&nVersion, &vchData[0], 4);
+        memcpy(hashPrevBlock.begin(), &vchData[4], 32);
+        memcpy(hashMerkleRoot.begin(), &vchData[36], 32);
+        memcpy(&nTime, &vchData[68], 4);
+        memcpy(&nBits, &vchData[72], 4);
+        memcpy(&nNonce, &vchData[76], 4);
+
+        if (fDebug)
+            printf("[getwork] submit data: version=%u time=%u bits=%08x nonce=%u merkle=%s\n",
+                   nVersion, nTime, nBits, nNonce, hashMerkleRoot.ToString().substr(0,16).c_str());
+
+        CBlock* pblock = NULL;
+        CKey key;
+        CRITICAL_BLOCK(cs_getwork)
+        {
+            if (fDebug)
+                printf("[getwork] mapGetworkBlocks has %d entries\n", (int)mapGetworkBlocks.size());
+            if (mapGetworkBlocks.count(hashMerkleRoot))
+            {
+                pblock = mapGetworkBlocks[hashMerkleRoot];
+                key = mapGetworkKeys[hashMerkleRoot];
+            }
+        }
+
+        if (!pblock)
+        {
+            if (fDebug)
+                printf("[getwork] ERROR: merkle root not found in map!\n");
+            throw runtime_error("Stale work - block not found");
+        }
+
+        pblock->nNonce = nNonce;
+        pblock->nTime = nTime;
+
+        uint256 hash = pblock->GetPoWHash();
+        uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
+
+        if (fDebug)
+            printf("[getwork] submit: nonce=%u hash=%s target=%s\n",
+                   nNonce, hash.ToString().c_str(), hashTarget.ToString().c_str());
+
+        if (hash > hashTarget)
+        {
+            if (fDebug)
+                printf("[getwork] hash does not meet target\n");
+            return false;
+        }
+
+        printf("getwork: block solved! hash=%s\n", hash.ToString().c_str());
+
+        CRITICAL_BLOCK(cs_main)
+        {
+            if (pblock->hashPrevBlock != hashBestChain)
+                return false;
+
+            if (!AddKey(key))
+                throw runtime_error("Failed to add key to wallet");
+        }
+
+        if (!ProcessBlock(NULL, pblock))
+            throw runtime_error("Block rejected");
+
+        CRITICAL_BLOCK(cs_getwork)
+        {
+            mapGetworkBlocks.erase(hashMerkleRoot);
+            mapGetworkKeys.erase(hashMerkleRoot);
+        }
+
+        return true;
+    }
+}
+
+
 Value getinfo(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
@@ -442,7 +748,7 @@ Value getinfo(const Array& params, bool fHelp)
 
     Object obj;
     obj.push_back(Pair("balance",       (double)GetBalance() / (double)COIN));
-    obj.push_back(Pair("blocks",        (int)nBestHeight + 1));
+    obj.push_back(Pair("blocks",        (int)nBestHeight));
     obj.push_back(Pair("connections",   (int)vNodes.size()));
     obj.push_back(Pair("proxy",         (fUseProxy ? addrProxy.ToStringIPPort() : string())));
     obj.push_back(Pair("generate",      (bool)fGenerateBitcoins));
@@ -615,7 +921,7 @@ Value listtransactions(const Array& params, bool fHelp)
 
             if (fGenerated)
             {
-                if (nDepth < COINBASE_MATURITY)
+                if (nDepth < GetCoinbaseMaturity())
                     continue;
                 int64 nCredit = wtx.GetCredit(true);
                 Object entry;
@@ -1173,6 +1479,10 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("getbalance",            &getbalance),
     make_pair("getgenerate",           &getgenerate),
     make_pair("setgenerate",           &setgenerate),
+    make_pair("getmininginfo",         &getmininginfo),
+    make_pair("getblocktemplate",      &getblocktemplate),
+    make_pair("submitblock",           &submitblock),
+    make_pair("getwork",               &getwork),
     make_pair("getinfo",               &getinfo),
     make_pair("getnewaddress",         &getnewaddress),
     make_pair("setlabel",              &setlabel),
@@ -1200,8 +1510,15 @@ map<string, rpcfn_type> mapCallTable(pCallTable, pCallTable + sizeof(pCallTable)
 // and to be compatible with other JSON-RPC implementations.
 //
 
+string EncodeBase64(const string& str);
+
 string HTTPPost(const string& strMsg)
 {
+    string strUserPass = GetArg("-rpcuser", "") + ":" + GetArg("-rpcpassword", "");
+    string strAuth;
+    if (strUserPass != ":")
+        strAuth = strprintf("Authorization: Basic %s\r\n", EncodeBase64(strUserPass).c_str());
+
     return strprintf(
             "POST / HTTP/1.1\r\n"
             "User-Agent: json-rpc/1.0\r\n"
@@ -1209,9 +1526,11 @@ string HTTPPost(const string& strMsg)
             "Content-Type: application/json\r\n"
             "Content-Length: %d\r\n"
             "Accept: application/json\r\n"
+            "%s"
             "\r\n"
             "%s",
         strMsg.size(),
+        strAuth.c_str(),
         strMsg.c_str());
 }
 
@@ -1219,23 +1538,121 @@ string HTTPReply(const string& strMsg, int nStatus=200)
 {
     string strStatus;
     if (nStatus == 200) strStatus = "OK";
+    if (nStatus == 401) strStatus = "Unauthorized";
+    if (nStatus == 403) strStatus = "Forbidden";
     if (nStatus == 500) strStatus = "Internal Server Error";
-    return strprintf(
+
+    string strHeaders = strprintf(
             "HTTP/1.1 %d %s\r\n"
             "Connection: close\r\n"
             "Content-Length: %d\r\n"
             "Content-Type: application/json\r\n"
             "Date: Sat, 08 Jul 2006 12:04:08 GMT\r\n"
-            "Server: json-rpc/1.0\r\n"
-            "\r\n"
-            "%s",
+            "Server: json-rpc/1.0\r\n",
         nStatus,
         strStatus.c_str(),
-        strMsg.size(),
-        strMsg.c_str());
+        strMsg.size());
+
+    if (nStatus == 401)
+        strHeaders += "WWW-Authenticate: Basic realm=\"jsonrpc\"\r\n";
+
+    return strHeaders + "\r\n" + strMsg;
 }
 
-int ReadHTTPHeader(tcp::iostream& stream)
+string EncodeBase64(const string& str)
+{
+    const char* pbase64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    string result;
+    int val = 0;
+    int valb = -6;
+    for (unsigned char c : str)
+    {
+        val = (val << 8) + c;
+        valb += 8;
+        while (valb >= 0)
+        {
+            result.push_back(pbase64[(val >> valb) & 0x3F]);
+            valb -= 6;
+        }
+    }
+    if (valb > -6)
+        result.push_back(pbase64[((val << 8) >> (valb + 8)) & 0x3F]);
+    while (result.size() % 4)
+        result.push_back('=');
+    return result;
+}
+
+string DecodeBase64(const string& str)
+{
+    const char* pbase64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    string result;
+    int val = 0;
+    int valb = -8;
+    for (unsigned char c : str)
+    {
+        if (c == '=') break;
+        const char* p = strchr(pbase64, c);
+        if (p == NULL) continue;
+        val = (val << 6) + (p - pbase64);
+        valb += 6;
+        if (valb >= 0)
+        {
+            result.push_back(char((val >> valb) & 0xFF));
+            valb -= 8;
+        }
+    }
+    return result;
+}
+
+bool HTTPAuthorized(const string& strAuth)
+{
+    string strRPCUserColonPass = GetArg("-rpcuser", "") + ":" + GetArg("-rpcpassword", "");
+    if (strRPCUserColonPass == ":")
+        return true;
+
+    if (strAuth.substr(0, 6) != "Basic ")
+        return false;
+
+    string strUserPass64 = strAuth.substr(6);
+    string strUserPass = DecodeBase64(strUserPass64);
+    return strUserPass == strRPCUserColonPass;
+}
+
+bool ClientAllowed(const string& strAddr)
+{
+    if (!mapMultiArgs.count("-rpcallowip"))
+        return strAddr == "127.0.0.1";
+
+    foreach(string strAllow, mapMultiArgs["-rpcallowip"])
+    {
+        if (strAllow == strAddr)
+            return true;
+
+        size_t pos = strAllow.find('/');
+        if (pos != string::npos)
+        {
+            unsigned int mask = 32;
+            if (pos < strAllow.length() - 1)
+                mask = atoi(strAllow.substr(pos + 1).c_str());
+
+            string strNet = strAllow.substr(0, pos);
+            unsigned int ip1[4], ip2[4];
+            if (sscanf(strAddr.c_str(), "%u.%u.%u.%u", &ip1[0], &ip1[1], &ip1[2], &ip1[3]) == 4 &&
+                sscanf(strNet.c_str(), "%u.%u.%u.%u", &ip2[0], &ip2[1], &ip2[2], &ip2[3]) == 4)
+            {
+                unsigned int nIP1 = (ip1[0] << 24) | (ip1[1] << 16) | (ip1[2] << 8) | ip1[3];
+                unsigned int nIP2 = (ip2[0] << 24) | (ip2[1] << 16) | (ip2[2] << 8) | ip2[3];
+                unsigned int nMask = 0xFFFFFFFF << (32 - mask);
+
+                if ((nIP1 & nMask) == (nIP2 & nMask))
+                    return true;
+            }
+        }
+    }
+    return false;
+}
+
+int ReadHTTPHeader(tcp::iostream& stream, map<string, string>& mapHeadersRet)
 {
     int nLen = 0;
     loop
@@ -1246,18 +1663,31 @@ int ReadHTTPHeader(tcp::iostream& stream)
             break;
         if (str.substr(0,15) == "Content-Length:")
             nLen = atoi(str.substr(15));
+        else
+        {
+            string::size_type nColon = str.find(":");
+            if (nColon != string::npos)
+            {
+                string strHeader = str.substr(0, nColon);
+                string strValue = str.substr(nColon + 1);
+                while (!strValue.empty() && isspace(strValue[0]))
+                    strValue = strValue.substr(1);
+                while (!strValue.empty() && (isspace(strValue[strValue.size()-1]) || strValue[strValue.size()-1] == '\r'))
+                    strValue = strValue.substr(0, strValue.size()-1);
+                mapHeadersRet[strHeader] = strValue;
+            }
+        }
     }
     return nLen;
 }
 
-inline string ReadHTTP(tcp::iostream& stream)
+inline string ReadHTTP(tcp::iostream& stream, map<string, string>& mapHeadersRet)
 {
-    // Read header
-    int nLen = ReadHTTPHeader(stream);
+    mapHeadersRet.clear();
+    int nLen = ReadHTTPHeader(stream, mapHeadersRet);
     if (nLen <= 0)
         return string();
 
-    // Read message
     vector<char> vch(nLen);
     stream.read(&vch[0], nLen);
     return string(vch.begin(), vch.end());
@@ -1319,18 +1749,32 @@ void ThreadRPCServer2(void* parg)
 {
     printf("ThreadRPCServer started\n");
 
-    // Bind to loopback 127.0.0.1 so the socket can only be accessed locally
+    int nRPCPort = GetIntArg("-rpcport", 8332);
+    string strRPCBind = GetArg("-rpcbind", "127.0.0.1");
+
+    boost::asio::ip::address bindAddress;
+    try
+    {
+        bindAddress = boost::asio::ip::address::from_string(strRPCBind);
+    }
+    catch (...)
+    {
+        printf("Invalid -rpcbind address: %s, using 127.0.0.1\n", strRPCBind.c_str());
+        bindAddress = boost::asio::ip::address_v4::loopback();
+    }
+
+    printf("RPC server binding to %s:%d\n", bindAddress.to_string().c_str(), nRPCPort);
+
 #if BOOST_VERSION >= 106600
     boost::asio::io_context io_service;
 #else
     boost::asio::io_service io_service;
 #endif
-    tcp::endpoint endpoint(boost::asio::ip::address_v4::loopback(), 8332);
+    tcp::endpoint endpoint(bindAddress, nRPCPort);
     tcp::acceptor acceptor(io_service, endpoint);
 
     loop
     {
-        // Accept connection
         tcp::iostream stream;
         tcp::endpoint peer;
         vnThreadsRunning[4]--;
@@ -1343,13 +1787,27 @@ void ThreadRPCServer2(void* parg)
         if (fShutdown)
             return;
 
-        // Shouldn't be possible for anyone else to connect, but just in case
-        if (peer.address().to_string() != "127.0.0.1")
-            continue;
+        string strPeerAddr = peer.address().to_string();
 
-        // Receive request
-        string strRequest = ReadHTTP(stream);
-        printf("ThreadRPCServer request=%s", strRequest.c_str());
+        if (!ClientAllowed(strPeerAddr))
+        {
+            printf("RPC connection from %s denied\n", strPeerAddr.c_str());
+            stream << HTTPReply("Forbidden", 403) << std::flush;
+            continue;
+        }
+
+        map<string, string> mapHeaders;
+        string strRequest = ReadHTTP(stream, mapHeaders);
+
+        if (!HTTPAuthorized(mapHeaders["Authorization"]))
+        {
+            printf("RPC authorization failed from %s\n", strPeerAddr.c_str());
+            stream << HTTPReply("Unauthorized", 401) << std::flush;
+            continue;
+        }
+
+        if (fDebug)
+            printf("[RPC] Request from %s\n", strPeerAddr.c_str());
 
         // Handle multiple invocations per request
         string::iterator begin = strRequest.begin();
@@ -1376,7 +1834,13 @@ void ThreadRPCServer2(void* parg)
                 map<string, rpcfn_type>::iterator mi = mapCallTable.find(strMethod);
                 if (mi == mapCallTable.end())
                     throw runtime_error("Method not found.");
+
+                int64 nStartTime = GetTimeMillis();
                 Value result = (*(*mi).second)(params, false);
+                int64 nDuration = GetTimeMillis() - nStartTime;
+
+                if (fDebug)
+                    printf("[RPC] %s (%d params) completed in %lld ms\n", strMethod.c_str(), (int)params.size(), (long long)nDuration);
 
                 // Send reply
                 string strReply = JSONRPCReply(result, Value::null, id);
@@ -1399,17 +1863,18 @@ void ThreadRPCServer2(void* parg)
 
 Value CallRPC(const string& strMethod, const Array& params)
 {
-    // Connect to localhost
-    tcp::iostream stream("127.0.0.1", "8332");
+    int nRPCPort = GetIntArg("-rpcport", 8332);
+    string strRPCHost = GetArg("-rpcconnect", "127.0.0.1");
+
+    tcp::iostream stream(strRPCHost, itostr(nRPCPort));
     if (stream.fail())
         throw runtime_error("couldn't connect to server");
 
-    // Send request
     string strRequest = JSONRPCRequest(strMethod, params, 1);
     stream << HTTPPost(strRequest) << std::flush;
 
-    // Receive reply
-    string strReply = ReadHTTP(stream);
+    map<string, string> mapHeaders;
+    string strReply = ReadHTTP(stream, mapHeaders);
     if (strReply.empty())
         throw runtime_error("no response from server");
 

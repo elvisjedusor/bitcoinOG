@@ -58,13 +58,13 @@ Data directory: `~/Library/Application Support/Bitok/`
 
 ```bash
 ./bitokd                           # Daemon
-./bitokd -gen                      # Mine
 ./bitokd -daemon                   # Background
-./bitokd -server -rpcuser=u -rpcpassword=p
 
 ./bitok                            # GUI wallet
 open /Applications/Bitok.app       # After install-gui
 ```
+
+Configure settings in `~/Library/Application Support/Bitok/bitok.conf`. See [README.md](README.md) for config options.
 
 ## Troubleshooting
 

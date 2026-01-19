@@ -40,32 +40,39 @@ The Bitok daemon exposes a JSON-RPC 1.0 interface. You can query blockchain data
 
 ## Connection & Authentication
 
-### Everything is command-line flags.
+### Configuration File
 
-```bash
-# Start daemon with RPC enabled
-./bitokd -rpcuser=yourusername -rpcpassword=yourpassword -server
+Create `bitok.conf` in your data directory:
 
-# Run in background
-./bitokd -rpcuser=yourusername -rpcpassword=yourpassword -server -daemon
+| OS | Config File Path |
+|----|------------------|
+| Linux (daemon) | `~/.bitokd/bitok.conf` |
+| macOS | `~/Library/Application Support/Bitok/bitok.conf` |
+| Windows | `%APPDATA%\Bitok\bitok.conf` |
 
-# Execute RPC command (uses same credentials)
-./bitokd -rpcuser=yourusername -rpcpassword=yourpassword getinfo
-./bitokd -rpcuser=yourusername -rpcpassword=yourpassword getbalance
-./bitokd -rpcuser=yourusername -rpcpassword=yourpassword getnewaddress "customer123"
+**Example `bitok.conf`:**
+```ini
+server=1
+rpcuser=yourusername
+rpcpassword=yourpassword
+rpcport=8332
+rpcallowip=127.0.0.1
 ```
 
-Yes, you have to type the credentials every time. That's how it worked in 2010.
-
-Alternatively, use environment variables in a wrapper script:
-
+**Secure the config file:**
 ```bash
-#!/bin/bash
-# bitok-cli.sh
-BITOK_USER="yourusername"
-BITOK_PASS="yourpassword"
-./bitokd -rpcuser=$BITOK_USER -rpcpassword=$BITOK_PASS "$@"
+chmod 600 ~/.bitokd/bitok.conf
 ```
+
+**Usage:**
+```bash
+./bitokd -daemon              # Start daemon
+./bitokd getinfo              # RPC commands use config automatically
+./bitokd getbalance
+./bitokd getnewaddress "customer123"
+```
+
+The daemon reads credentials from the config file automatically. No need for command-line flags or wrapper scripts.
 
 ### Security Recommendations
 
@@ -1076,6 +1083,242 @@ def monitor_network_difficulty(rpc):
 
 ---
 
+### getmininginfo
+
+Returns detailed mining-related information.
+
+**Parameters:** None
+
+**Returns:** Object containing:
+- `blocks` (number) - Current block height
+- `currentblocksize` (number) - Size of current block being mined
+- `currentblocktx` (number) - Transaction count in current block
+- `difficulty` (number) - Current network difficulty
+- `networkhashps` (number) - Estimated network hash rate (hashes/second)
+- `pooledtx` (number) - Number of transactions in memory pool
+- `chain` (string) - Network name ("main")
+- `generate` (boolean) - Whether mining is enabled
+- `genproclimit` (number) - Number of mining threads (-1 = all cores)
+
+**Example:**
+```bash
+./bitokd getmininginfo
+```
+
+**Response:**
+```json
+{
+  "blocks": 12450,
+  "currentblocksize": 0,
+  "currentblocktx": 0,
+  "difficulty": 1.52587891,
+  "networkhashps": 125000,
+  "pooledtx": 5,
+  "chain": "main",
+  "generate": true,
+  "genproclimit": 4
+}
+```
+
+**Use Case - Pool Statistics Dashboard:**
+```python
+def get_mining_stats(rpc):
+    """Get comprehensive mining statistics"""
+    info = rpc.call('getmininginfo')
+
+    return {
+        'height': info['blocks'],
+        'difficulty': info['difficulty'],
+        'network_hashrate': info['networkhashps'],
+        'pending_transactions': info['pooledtx'],
+        'mining_enabled': info['generate'],
+        'threads': info['genproclimit']
+    }
+```
+
+---
+
+### getblocktemplate
+
+Returns data needed to construct a block for mining. Implements BIP 22.
+
+**Parameters:**
+- `params` (object, optional) - Template request parameters (currently ignored)
+
+**Returns:** Object containing:
+- `version` (number) - Block version
+- `previousblockhash` (string) - Hash of previous block
+- `transactions` (array) - Array of transaction objects to include
+- `coinbaseaux` (object) - Auxiliary data for coinbase
+- `coinbasevalue` (number) - Maximum coinbase value in satoshis
+- `target` (string) - Target hash for block to be valid
+- `mintime` (number) - Minimum block timestamp
+- `mutable` (array) - List of mutable fields
+- `noncerange` (string) - Valid nonce range
+- `sigoplimit` (number) - Maximum signature operations
+- `sizelimit` (number) - Maximum block size
+- `curtime` (number) - Current timestamp
+- `bits` (string) - Compact target in hex
+- `height` (number) - Height of block being mined
+
+**Example:**
+```bash
+./bitokd getblocktemplate
+```
+
+**Response:**
+```json
+{
+  "version": 1,
+  "previousblockhash": "000007a5d9c7b6e7b8c9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1",
+  "transactions": [],
+  "coinbaseaux": {
+    "flags": ""
+  },
+  "coinbasevalue": 5000000000,
+  "target": "00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "mintime": 1609459200,
+  "mutable": ["time", "transactions", "prevblock"],
+  "noncerange": "00000000ffffffff",
+  "sigoplimit": 20000,
+  "sizelimit": 1000000,
+  "curtime": 1609459260,
+  "bits": "1effffff",
+  "height": 12451
+}
+```
+
+**Use Case - Mining Pool Block Template:**
+```python
+def get_block_template(rpc):
+    """Get block template for pool miners"""
+    template = rpc.call('getblocktemplate')
+
+    return {
+        'height': template['height'],
+        'previous_hash': template['previousblockhash'],
+        'target': template['target'],
+        'bits': template['bits'],
+        'coinbase_value': template['coinbasevalue'] / 100000000,
+        'transactions': template['transactions']
+    }
+```
+
+---
+
+### submitblock
+
+Submits a mined block to the network.
+
+**Parameters:**
+- `hexdata` (string, required) - Hex-encoded block data
+- `params` (object, optional) - Optional parameters (currently ignored)
+
+**Returns:**
+- `null` on success
+- Error string on failure (e.g., "rejected")
+
+**Example:**
+```bash
+./bitokd submitblock "0100000000000000000000000000..."
+```
+
+**Response (success):**
+```
+null
+```
+
+**Response (failure):**
+```
+"rejected"
+```
+
+**Use Case - Pool Block Submission:**
+```python
+def submit_block(rpc, block_hex):
+    """Submit a solved block to the network"""
+    try:
+        result = rpc.call('submitblock', [block_hex])
+        if result is None:
+            return {'success': True, 'message': 'Block accepted'}
+        else:
+            return {'success': False, 'error': result}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+```
+
+---
+
+### getwork
+
+Legacy mining protocol for external miners. Returns work data or submits solved work.
+
+**Parameters:**
+- `data` (string, optional) - If provided, submits solved work. If omitted, returns new work.
+
+**Returns (requesting work):** Object containing:
+- `data` (string) - 256 hex characters (128 bytes) of block header data
+- `target` (string) - Target hash in hex (little-endian)
+- `algorithm` (string) - Mining algorithm ("yespower")
+
+**Returns (submitting work):**
+- `true` if block accepted
+- `false` if rejected
+
+**Example (get work):**
+```bash
+./bitokd getwork
+```
+
+**Response:**
+```json
+{
+  "data": "0100000000000000...00000000",
+  "target": "00000000ffffffff...00000000",
+  "algorithm": "yespower"
+}
+```
+
+**Example (submit work):**
+```bash
+./bitokd getwork "0100000000000000...solved_nonce..."
+```
+
+**Response:**
+```
+true
+```
+
+**Use Case - External Miner Integration:**
+```python
+def mine_with_getwork(rpc):
+    """Simple getwork mining loop"""
+    while True:
+        work = rpc.call('getwork')
+
+        # Parse work data (128 bytes, byte-swapped)
+        data = bytes.fromhex(work['data'])
+        target = bytes.fromhex(work['target'])
+
+        # Mine (simplified - actual miner would hash with Yespower)
+        solved_data = do_yespower_mining(data, target)
+
+        if solved_data:
+            result = rpc.call('getwork', [solved_data.hex()])
+            if result:
+                print("Block found and accepted!")
+```
+
+**Note:** The `data` field is byte-swapped in 4-byte chunks for compatibility with standard mining protocols. External miners must reverse this when parsing and submitting.
+
+**Yespower Parameters for External Miners:**
+- Algorithm: Yespower 1.0
+- N (memory cost): 2048
+- r (block size): 32
+- Personalization: "BitokPoW"
+
+---
+
 ## Network Operations
 
 ### getconnectioncount
@@ -1823,24 +2066,24 @@ else:
 
 ### 1. Credential Management
 
-All settings are command-line only - there is no config file:
+Use a configuration file for persistent settings:
 
-```bash
+**Create `bitok.conf` in your data directory:**
+- Linux: `~/.bitokd/bitok.conf`
+- macOS: `~/Library/Application Support/Bitok/bitok.conf`
+- Windows: `%APPDATA%\Bitok\bitok.conf`
+
+```ini
 # Strong credentials (32+ characters recommended)
-./bitokd -rpcuser=bitok_rpc_user_a8f7d9c2b1e4 \
-         -rpcpassword=9k3mX7pQ2vL5wN8rT4yH6jU1cF9dE0aZ \
-         -server -daemon
+server=1
+rpcuser=bitok_rpc_user_a8f7d9c2b1e4
+rpcpassword=9k3mX7pQ2vL5wN8rT4yH6jU1cF9dE0aZ
+rpcallowip=127.0.0.1
 ```
 
-Or use a wrapper script so you don't have to type them every time:
-
+**Secure the config file:**
 ```bash
-#!/bin/bash
-# /usr/local/bin/bitok-rpc
-exec /path/to/bitokd \
-    -rpcuser=bitok_rpc_user_a8f7d9c2b1e4 \
-    -rpcpassword=9k3mX7pQ2vL5wN8rT4yH6jU1cF9dE0aZ \
-    "$@"
+chmod 600 ~/.bitokd/bitok.conf
 ```
 
 ### 2. Network Security
@@ -2014,10 +2257,14 @@ def send_with_logging(rpc, address, amount, user_id):
 | getrawmempool | Transaction | Get all unconfirmed transaction IDs |
 | validateaddress | Utility | Validate address and check ownership |
 | getdifficulty | Mining | Get proof-of-work difficulty |
-| getconnectioncount | Network | Get peer count |
-| getpeerinfo | Network | Get detailed peer information |
+| getmininginfo | Mining | Get comprehensive mining info |
+| getblocktemplate | Mining | Get block template for mining (BIP 22) |
+| submitblock | Mining | Submit a mined block |
+| getwork | Mining | Legacy mining protocol |
 | getgenerate | Mining | Get mining status |
 | setgenerate | Mining | Enable/disable mining |
+| getconnectioncount | Network | Get peer count |
+| getpeerinfo | Network | Get detailed peer information |
 | getbalance | Wallet | Get wallet balance |
 | getnewaddress | Wallet | Generate new address |
 | setlabel | Wallet | Set address label |
