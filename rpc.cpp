@@ -369,12 +369,12 @@ double GetDifficulty()
         return 1.0;
 
     int nShift = (pindexBest->nBits >> 24) & 0xff;
-    int nMantissa = pindexBest->nBits & 0x00ffffff;
+    int nMantissa = pindexBest->nBits & 0x007fffff;
 
     if (nMantissa == 0)
         return 1.0;
 
-    double dDiff = (double)0x00ffffff / (double)nMantissa;
+    double dDiff = (double)0x007fffff / (double)nMantissa;
 
     while (nShift < 0x1e)
     {

@@ -198,6 +198,52 @@ bool CMyApp::Initialize(int& argc, wxChar** argv)
         }
     }
 
+    // Handle daemonization for Unix/Linux systems
+#if !defined(_WIN32) && !defined(__MINGW32__) && !defined(__WXMSW__)
+    if (fDaemon)
+    {
+        // Fork process to background
+        pid_t pid = fork();
+        if (pid < 0)
+        {
+            fprintf(stderr, "Error: fork() returned %d errno %d\n", pid, errno);
+            return false;
+        }
+        if (pid > 0)
+        {
+            // Parent process exits
+            exit(0);
+        }
+
+        // Child process continues
+        // Create new session and detach from terminal
+        if (setsid() < 0)
+        {
+            fprintf(stderr, "Error: setsid() failed errno %d\n", errno);
+            return false;
+        }
+
+        // Change working directory to root to avoid blocking unmount
+        // (actually, let's keep the current directory for .bitok access)
+
+        // Close standard file descriptors
+        close(STDIN_FILENO);
+        close(STDOUT_FILENO);
+        close(STDERR_FILENO);
+
+        // Redirect to /dev/null
+        int fd = open("/dev/null", O_RDWR);
+        if (fd != -1)
+        {
+            dup2(fd, STDIN_FILENO);
+            dup2(fd, STDOUT_FILENO);
+            dup2(fd, STDERR_FILENO);
+            if (fd > STDERR_FILENO)
+                close(fd);
+        }
+    }
+#endif
+
 #ifdef __WXGTK__
     if (fDaemon || fCommandLine)
     {
@@ -207,19 +253,6 @@ bool CMyApp::Initialize(int& argc, wxChar** argv)
         {
             wxLogNull logNo;
             wxApp::Initialize(argc, argv);
-        }
-
-        if (fDaemon)
-        {
-            // Daemonize
-            pid_t pid = fork();
-            if (pid < 0)
-            {
-                fprintf(stderr, "Error: fork() returned %d errno %d\n", pid, errno);
-                return false;
-            }
-            if (pid > 0)
-                pthread_exit((void*)0);
         }
 
         return true;
@@ -717,6 +750,47 @@ bool AppInit(int argc, char* argv[])
     if (!fCommandLine)
     {
         fDaemon = true;
+
+#if !defined(_WIN32) && !defined(__MINGW32__)
+        bool fBackground = false;
+        for (int i = 1; i < argc; i++)
+        {
+            if (strcmp(argv[i], "-daemon") == 0 || strcmp(argv[i], "--daemon") == 0)
+            {
+                fBackground = true;
+                break;
+            }
+        }
+
+        if (fBackground)
+        {
+            pid_t pid = fork();
+            if (pid < 0)
+            {
+                fprintf(stderr, "Error: fork() returned %d errno %d\n", pid, errno);
+                return false;
+            }
+            if (pid > 0)
+                exit(0);
+
+            setsid();
+
+            close(STDIN_FILENO);
+            close(STDOUT_FILENO);
+            close(STDERR_FILENO);
+
+            int fd = open("/dev/null", O_RDWR);
+            if (fd >= 0)
+            {
+                dup2(fd, STDIN_FILENO);
+                dup2(fd, STDOUT_FILENO);
+                dup2(fd, STDERR_FILENO);
+                if (fd > STDERR_FILENO)
+                    close(fd);
+            }
+        }
+#endif
+
         InitSHA256();
         yespower_init_dispatch();
     }
@@ -953,22 +1027,6 @@ bool AppInit(int argc, char* argv[])
         if (nTransactionFee > 0.25 * COIN)
             fprintf(stderr, "Warning: -paytxfee is set very high\n");
     }
-
-#if !defined(_WIN32) && !defined(__MINGW32__)
-    if (fDaemon && !fDebug)
-    {
-        pid_t pid = fork();
-        if (pid < 0)
-        {
-            fprintf(stderr, "Error: fork() returned %d errno %d\n", pid, errno);
-            return false;
-        }
-        if (pid > 0)
-            exit(0);
-
-        setsid();
-    }
-#endif
 
     if (!CheckDiskSpace())
         return false;
