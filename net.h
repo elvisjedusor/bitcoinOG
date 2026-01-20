@@ -316,6 +316,11 @@ public:
         return ((unsigned char*)&ip)[3-n];
     }
 
+    uint16_t GetGroup() const
+    {
+        return (GetByte(3) << 8) | GetByte(2);
+    }
+
     string ToStringIPPort() const
     {
         return strprintf("%u.%u.%u.%u:%u", GetByte(3), GetByte(2), GetByte(1), GetByte(0), ntohs(port));

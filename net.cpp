@@ -38,6 +38,38 @@ map<CInv, int64> mapAlreadyAskedFor;
 int fUseProxy = false;
 CAddress addrProxy("127.0.0.1:9050");
 
+// Anti-eclipse: Network group diversity settings
+static const int MAX_OUTBOUND_PER_GROUP = 2;
+static const int MAX_INBOUND_PER_GROUP = 4;
+
+int GetInboundGroupCount(uint16_t nGroup)
+{
+    int nCount = 0;
+    CRITICAL_BLOCK(cs_vNodes)
+    {
+        foreach(CNode* pnode, vNodes)
+        {
+            if (pnode->fInbound && pnode->addr.GetGroup() == nGroup)
+                nCount++;
+        }
+    }
+    return nCount;
+}
+
+map<uint16_t, int> GetNetworkGroupCounts()
+{
+    map<uint16_t, int> mapGroupCounts;
+    CRITICAL_BLOCK(cs_vNodes)
+    {
+        foreach(CNode* pnode, vNodes)
+        {
+            if (!pnode->fInbound)
+                mapGroupCounts[pnode->addr.GetGroup()]++;
+        }
+    }
+    return mapGroupCounts;
+}
+
 
 
 
@@ -673,15 +705,28 @@ void ThreadSocketHandler2(void* parg)
             }
             else
             {
-                if (fDebug)
-                    printf("[NET] Accepted inbound connection from %s\n", addr.ToStringLog().c_str());
-                CNode* pnode = new CNode(hSocket, addr, true);
-                pnode->AddRef();
-                CRITICAL_BLOCK(cs_vNodes)
+                uint16_t nGroup = addr.GetGroup();
+                int nGroupCount = GetInboundGroupCount(nGroup);
+                if (nGroupCount >= MAX_INBOUND_PER_GROUP)
                 {
-                    vNodes.push_back(pnode);
                     if (fDebug)
-                        printf("[NET] Total peers: %d\n", (int)vNodes.size());
+                        printf("[NET] Rejecting inbound from %s: too many from network group %u.%u.x.x (%d/%d)\n",
+                               addr.ToStringLog().c_str(), nGroup >> 8, nGroup & 0xff, nGroupCount, MAX_INBOUND_PER_GROUP);
+                    closesocket(hSocket);
+                }
+                else
+                {
+                    if (fDebug)
+                        printf("[NET] Accepted inbound connection from %s (group %u.%u.x.x: %d/%d)\n",
+                               addr.ToStringLog().c_str(), nGroup >> 8, nGroup & 0xff, nGroupCount + 1, MAX_INBOUND_PER_GROUP);
+                    CNode* pnode = new CNode(hSocket, addr, true);
+                    pnode->AddRef();
+                    CRITICAL_BLOCK(cs_vNodes)
+                    {
+                        vNodes.push_back(pnode);
+                        if (fDebug)
+                            printf("[NET] Total peers: %d\n", (int)vNodes.size());
+                    }
                 }
             }
         }
@@ -1019,15 +1064,23 @@ void ThreadOpenConnections2(void* parg)
 
         //
         // Choose an address to connect to based on most recently seen
+        // with network group diversity for anti-eclipse protection
         //
         CAddress addrConnect;
         int64 nBest = INT64_MIN;
 
         // Do this here so we don't have to critsect vNodes inside mapAddresses critsect
         set<unsigned int> setConnected;
+        map<uint16_t, int> mapGroupCounts;
         CRITICAL_BLOCK(cs_vNodes)
+        {
             foreach(CNode* pnode, vNodes)
+            {
                 setConnected.insert(pnode->addr.ip);
+                if (!pnode->fInbound)
+                    mapGroupCounts[pnode->addr.GetGroup()]++;
+            }
+        }
 
         CRITICAL_BLOCK(cs_mapAddresses)
         {
@@ -1035,6 +1088,10 @@ void ThreadOpenConnections2(void* parg)
             {
                 const CAddress& addr = item.second;
                 if (!addr.IsIPv4() || !addr.IsValid() || setConnected.count(addr.ip))
+                    continue;
+
+                uint16_t nGroup = addr.GetGroup();
+                if (mapGroupCounts[nGroup] >= MAX_OUTBOUND_PER_GROUP)
                     continue;
                 int64 nSinceLastSeen = GetAdjustedTime() - addr.nTime;
                 int64 nSinceLastTry = GetAdjustedTime() - addr.nLastTry;
