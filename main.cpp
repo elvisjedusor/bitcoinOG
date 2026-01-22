@@ -3335,11 +3335,12 @@ int64 GetNetworkHashPS(int lookup)
 
     int actualLookup = (nBestHeight < lookup) ? (int)nBestHeight : lookup;
 
-    CBlockIndex *pbEnd = pb;
+    CBlockIndex *pbEnd = pb->pnext;  // End after the best block
     int64 minTime = pb->nTime;
     int64 maxTime = minTime;
 
-    for (int i = 0; i < actualLookup && pb->pprev != NULL; i++)
+    // Go back (actualLookup - 1) times to include the best block in the count
+    for (int i = 0; i < actualLookup - 1 && pb->pprev != NULL; i++)
     {
         pb = pb->pprev;
         int64 time = pb->nTime;
@@ -3367,7 +3368,7 @@ int64 GetNetworkHashPS(int lookup)
     }
 
     double timeDiff = maxTime - minTime;
-    double hashesPerSec = (totalWork * pow(2.0, 17)) / timeDiff;
+    double hashesPerSec = (totalWork * pow(2.0, 18)) / timeDiff;
 
     return (int64)hashesPerSec;
 }
