@@ -1192,7 +1192,7 @@ Value getrawtransaction(const Array& params, bool fHelp)
         Object entry;
         entry.push_back(Pair("value", (double)txout.nValue / (double)COIN));
         entry.push_back(Pair("n", i));
-        entry.push_back(Pair("scriptPubKey", HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end())));
+        entry.push_back(Pair("scriptPubKey", HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end(), false)));
 
         string strAddress;
         if (ExtractAddress(txout.scriptPubKey, strAddress))
@@ -1280,7 +1280,7 @@ Value listunspent(const Array& params, bool fHelp)
                 if (ExtractAddress(txout.scriptPubKey, strAddress))
                     entry.push_back(Pair("address", strAddress));
 
-                entry.push_back(Pair("scriptPubKey", HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end())));
+                entry.push_back(Pair("scriptPubKey", HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end(), false)));
                 entry.push_back(Pair("amount", (double)txout.nValue / (double)COIN));
                 entry.push_back(Pair("confirmations", nDepth));
 
